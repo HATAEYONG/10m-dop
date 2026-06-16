@@ -20,6 +20,7 @@ import {
   Play,
   Bot,
   FileBarChart2,
+  MessageSquareText,
 } from "lucide-react";
 
 const nav = [
@@ -34,6 +35,7 @@ const nav = [
   { href: "/quality", icon: CheckCircle, label: "Quality Validator", sub: "품질 검증" },
   { href: "/human-review", icon: ClipboardCheck, label: "Human Review", sub: "AI 저신뢰 항목 검토" },
   { href: "/mes-viewer", icon: Factory, label: "MES Viewer", sub: "공정·설비 현황" },
+  { href: "/graphrag", icon: MessageSquareText, label: "GraphRAG Demo", sub: "지식 그래프 질의" },
   { href: "/pipeline-runner", icon: Play, label: "Pipeline Runner", sub: "파이프라인 실행" },
   { href: "/agent-monitor", icon: Bot, label: "Agent Monitor", sub: "AI 결정 로그" },
   { href: "/onboarding-report", icon: FileBarChart2, label: "Onboarding Report", sub: "AI-Readiness 리포트" },
