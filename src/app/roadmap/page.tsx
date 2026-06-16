@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Clock, Circle, ChevronRight, Users, Package, FileText, Wrench, Database, GitBranch, Network, Share2, CheckSquare, Eye } from "lucide-react";
+import { CheckCircle2, Clock, Circle, ChevronRight, Users, Package, FileText, Wrench, Database, GitBranch, Network, Share2, CheckSquare, Eye, Factory } from "lucide-react";
 
 type ModuleStatus = "done" | "in_progress" | "planned" | "blocked";
 type MvpPhase = 1 | 2 | 3;
@@ -65,9 +65,9 @@ const modules: Module[] = [
     nameEn: "Document Parser",
     icon: <FileText className="w-4 h-4" />,
     desc: "비정형 문서 구조화 — PDF, Word, 작업표준서, 검사성적서, 계약서",
-    phase: 1,
+    phase: 2,
     status: "in_progress",
-    progress: 50,
+    progress: 70,
     companies: [
       { name: "A업체", done: true },
       { name: "B업체", done: false },
@@ -84,9 +84,9 @@ const modules: Module[] = [
     nameEn: "Data Cleaner",
     icon: <Wrench className="w-4 h-4" />,
     desc: "날짜 표준화·단위 변환·중복 제거·결측치 처리·이상값 탐지",
-    phase: 1,
+    phase: 2,
     status: "in_progress",
-    progress: 50,
+    progress: 80,
     companies: [
       { name: "A업체", done: true },
       { name: "B업체", done: true },
@@ -199,8 +199,8 @@ const modules: Module[] = [
     icon: <Eye className="w-4 h-4" />,
     desc: "AI가 애매한 항목을 사람에게 넘기는 Review UI — 신뢰도·근거 제시",
     phase: 2,
-    status: "planned",
-    progress: 0,
+    status: "in_progress",
+    progress: 90,
     companies: [
       { name: "A업체", done: false },
       { name: "B업체", done: false },
@@ -209,7 +209,26 @@ const modules: Module[] = [
     ],
     inputTypes: ["Entity Resolver 낮은 신뢰도", "Canonical Mapper 미승인"],
     outputTypes: ["승인/거절 결정", "매핑 이력 DB"],
-    eta: "2026 Q4",
+    eta: "2026 Q3",
+  },
+  {
+    id: 11,
+    name: "MES Viewer",
+    nameEn: "MES Viewer",
+    icon: <Factory className="w-4 h-4" />,
+    desc: "공정 타임라인·설비 가동률·이상값 경보 — MES/설비 CSV 로그 시각화",
+    phase: 2,
+    status: "in_progress",
+    progress: 85,
+    companies: [
+      { name: "A업체", done: true },
+      { name: "B업체", done: false },
+      { name: "C업체", done: false },
+      { name: "D업체", done: false },
+    ],
+    inputTypes: ["MES 공정 데이터", "설비 CSV 로그", "IoT 센서값"],
+    outputTypes: ["공정 타임라인", "가동률 대시보드", "경보 목록"],
+    eta: "2026 Q3",
   },
 ];
 

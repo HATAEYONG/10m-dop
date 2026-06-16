@@ -13,16 +13,24 @@ import {
   CheckCircle,
   Building2,
   Map,
+  FileSearch,
+  ClipboardCheck,
+  Sparkles,
+  Factory,
 } from "lucide-react";
 
 const nav = [
   { href: "/", icon: LayoutDashboard, label: "대시보드", sub: "업체 데이터 진단" },
   { href: "/sources", icon: Database, label: "Source Registry", sub: "데이터 원천 관리" },
   { href: "/schema-mapping", icon: GitBranch, label: "Schema Mapping", sub: "컬럼 표준화" },
+  { href: "/document-parser", icon: FileSearch, label: "Document Parser", sub: "PDF·CSV 파싱" },
+  { href: "/data-cleaner", icon: Sparkles, label: "Data Cleaner", sub: "날짜·단위·중복 정제" },
   { href: "/entity-resolution", icon: Users, label: "Entity Resolution", sub: "엔티티 통합" },
   { href: "/ontology-mapping", icon: Network, label: "Ontology Mapping", sub: "10M 온톨로지" },
   { href: "/graph", icon: Share2, label: "Graph Preview", sub: "지식 그래프" },
   { href: "/quality", icon: CheckCircle, label: "Quality Validator", sub: "품질 검증" },
+  { href: "/human-review", icon: ClipboardCheck, label: "Human Review", sub: "AI 저신뢰 항목 검토" },
+  { href: "/mes-viewer", icon: Factory, label: "MES Viewer", sub: "공정·설비 현황" },
   { href: "/roadmap", icon: Map, label: "Roadmap", sub: "개발 현황 · 내부용" },
 ];
 
@@ -63,9 +71,9 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-slate-700">
-        <div className="text-xs text-slate-500">MVP 1 · Excel + ERP + PDF</div>
-        <div className="flex gap-1 mt-2">
-          {["Excel", "ERP", "PDF"].map(t => (
+        <div className="text-xs text-slate-500">MVP 2 · MES + CSV + 품질문서</div>
+        <div className="flex gap-1 mt-2 flex-wrap">
+          {["Excel", "ERP", "PDF", "MES", "CSV"].map(t => (
             <span key={t} className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">{t}</span>
           ))}
         </div>
