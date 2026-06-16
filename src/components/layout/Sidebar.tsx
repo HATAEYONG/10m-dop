@@ -17,6 +17,9 @@ import {
   ClipboardCheck,
   Sparkles,
   Factory,
+  Play,
+  Bot,
+  FileBarChart2,
 } from "lucide-react";
 
 const nav = [
@@ -31,6 +34,9 @@ const nav = [
   { href: "/quality", icon: CheckCircle, label: "Quality Validator", sub: "품질 검증" },
   { href: "/human-review", icon: ClipboardCheck, label: "Human Review", sub: "AI 저신뢰 항목 검토" },
   { href: "/mes-viewer", icon: Factory, label: "MES Viewer", sub: "공정·설비 현황" },
+  { href: "/pipeline-runner", icon: Play, label: "Pipeline Runner", sub: "파이프라인 실행" },
+  { href: "/agent-monitor", icon: Bot, label: "Agent Monitor", sub: "AI 결정 로그" },
+  { href: "/onboarding-report", icon: FileBarChart2, label: "Onboarding Report", sub: "AI-Readiness 리포트" },
   { href: "/roadmap", icon: Map, label: "Roadmap", sub: "개발 현황 · 내부용" },
 ];
 
@@ -71,9 +77,9 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-slate-700">
-        <div className="text-xs text-slate-500">MVP 2 · MES + CSV + 품질문서</div>
+        <div className="text-xs text-slate-500">MVP 3 · Pipeline + Agent + Report</div>
         <div className="flex gap-1 mt-2 flex-wrap">
-          {["Excel", "ERP", "PDF", "MES", "CSV"].map(t => (
+          {["Runner", "Agent", "Report"].map(t => (
             <span key={t} className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">{t}</span>
           ))}
         </div>

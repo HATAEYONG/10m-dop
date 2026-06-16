@@ -4,7 +4,7 @@ import { useState } from "react";
 import { CheckCircle2, Clock, Circle, ChevronRight, Users, Package, FileText, Wrench, Database, GitBranch, Network, Share2, CheckSquare, Eye, Factory } from "lucide-react";
 
 type ModuleStatus = "done" | "in_progress" | "planned" | "blocked";
-type MvpPhase = 1 | 2 | 3;
+type MvpPhase = 1 | 2 | 3 | 4;
 
 interface Module {
   id: number;
@@ -230,6 +230,63 @@ const modules: Module[] = [
     outputTypes: ["공정 타임라인", "가동률 대시보드", "경보 목록"],
     eta: "2026 Q3",
   },
+  {
+    id: 12,
+    name: "Pipeline Runner",
+    nameEn: "Pipeline Runner",
+    icon: <Share2 className="w-4 h-4" />,
+    desc: "10단계 파이프라인 실행 시뮬레이션 — 업체 선택 후 Step-by-step 실행",
+    phase: 3,
+    status: "in_progress",
+    progress: 90,
+    companies: [
+      { name: "A업체", done: true },
+      { name: "B업체", done: false },
+      { name: "C업체", done: false },
+      { name: "D업체", done: false },
+    ],
+    inputTypes: ["전체 파이프라인 모듈"],
+    outputTypes: ["실행 결과 요약", "단계별 처리 통계"],
+    eta: "2026 Q3",
+  },
+  {
+    id: 13,
+    name: "Agent Monitor",
+    nameEn: "Agent Monitor",
+    icon: <CheckSquare className="w-4 h-4" />,
+    desc: "AI Agent 결정 로그 타임라인 — 단계별 신뢰도·근거·토큰 사용량 추적",
+    phase: 3,
+    status: "in_progress",
+    progress: 90,
+    companies: [
+      { name: "A업체", done: true },
+      { name: "B업체", done: false },
+      { name: "C업체", done: false },
+      { name: "D업체", done: false },
+    ],
+    inputTypes: ["각 파이프라인 단계 AI 결정"],
+    outputTypes: ["결정 로그", "escalation 현황"],
+    eta: "2026 Q3",
+  },
+  {
+    id: 14,
+    name: "Onboarding Report",
+    nameEn: "Onboarding Report",
+    icon: <Users className="w-4 h-4" />,
+    desc: "업체별 AI-Readiness 점수 + 6대 품질 지표 레이더 차트 + PDF 다운로드",
+    phase: 3,
+    status: "in_progress",
+    progress: 90,
+    companies: [
+      { name: "A업체", done: true },
+      { name: "B업체", done: true },
+      { name: "C업체", done: true },
+      { name: "D업체", done: true },
+    ],
+    inputTypes: ["Quality Validator 결과", "전체 파이프라인 완료 현황"],
+    outputTypes: ["AI-Readiness 점수", "레이더 차트", "PDF 리포트"],
+    eta: "2026 Q3",
+  },
 ];
 
 const mvpConfig = {
@@ -255,12 +312,22 @@ const mvpConfig = {
   },
   3: {
     label: "MVP 3",
-    sub: "API + 이메일 + 뉴스 + APS",
+    sub: "Pipeline Runner + Agent Monitor + Report",
     color: "emerald",
     bg: "bg-emerald-50",
     border: "border-emerald-200",
     badge: "bg-emerald-600 text-white",
     bar: "bg-emerald-500",
+    eta: "2026 Q3",
+  },
+  4: {
+    label: "MVP 4",
+    sub: "API + 이메일 + 뉴스 + APS",
+    color: "orange",
+    bg: "bg-orange-50",
+    border: "border-orange-200",
+    badge: "bg-orange-600 text-white",
+    bar: "bg-orange-500",
     eta: "2027 Q1–Q2",
   },
 };
