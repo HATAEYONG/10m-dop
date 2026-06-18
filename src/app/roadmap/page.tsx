@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Clock, Circle, ChevronRight, Users, Package, FileText, Wrench, Database, GitBranch, Network, Share2, CheckSquare, Eye, Factory, Plug, Mail, Newspaper, CalendarClock } from "lucide-react";
+import { CheckCircle2, Clock, Circle, ChevronRight, Users, Package, FileText, Wrench, Database, GitBranch, Network, Share2, CheckSquare, Eye, Factory, Plug, Mail, Newspaper, CalendarClock, RadioTower } from "lucide-react";
 
 type ModuleStatus = "done" | "in_progress" | "planned" | "blocked";
-type MvpPhase = 1 | 2 | 3 | 4;
+type MvpPhase = 1 | 2 | 3 | 4 | 5;
 
 interface Module {
   id: number;
@@ -345,6 +345,25 @@ const modules: Module[] = [
     eta: "2027 Q1",
   },
   {
+    id: 19,
+    name: "Sensor Gateway",
+    nameEn: "Sensor Gateway",
+    icon: <RadioTower className="w-4 h-4" />,
+    desc: "설비·PLC·센서 다프로토콜 수집 — OPC-UA·Modbus·S7·EtherNet/IP·MC·FINS·ADS + Node-RED 통합",
+    phase: 4,
+    status: "in_progress",
+    progress: 85,
+    companies: [
+      { name: "A업체", done: true },
+      { name: "B업체", done: false },
+      { name: "C업체", done: false },
+      { name: "D업체", done: false },
+    ],
+    inputTypes: ["PLC Tag", "OPC-UA NodeId", "Modbus Register", "센서 아날로그"],
+    outputTypes: ["실시간 태그 스트림", "Kafka Topic", "품질 어노테이션"],
+    eta: "2027 Q1",
+  },
+  {
     id: 14,
     name: "Onboarding Report",
     nameEn: "Onboarding Report",
@@ -362,6 +381,82 @@ const modules: Module[] = [
     inputTypes: ["Quality Validator 결과", "전체 파이프라인 완료 현황"],
     outputTypes: ["AI-Readiness 점수", "레이더 차트", "PDF 리포트"],
     eta: "2026 Q3",
+  },
+  {
+    id: 20,
+    name: "Auto Onboarding",
+    nameEn: "Auto Onboarding",
+    icon: <RadioTower className="w-4 h-4" />,
+    desc: "AI 에이전트가 10단계 온보딩 파이프라인을 자율 실행 — 자동 의사결정 + Human Escalation",
+    phase: 5,
+    status: "in_progress",
+    progress: 85,
+    companies: [
+      { name: "A업체", done: true },
+      { name: "B업체", done: false },
+      { name: "C업체", done: false },
+      { name: "D업체", done: false },
+    ],
+    inputTypes: ["전체 파이프라인 모듈", "AI 모델 연동"],
+    outputTypes: ["자율 실행 로그", "AI-Readiness 점수", "에스컬레이션 항목"],
+    eta: "2027 Q2",
+  },
+  {
+    id: 21,
+    name: "Supply Chain Twin",
+    nameEn: "Supply Chain Twin",
+    icon: <Share2 className="w-4 h-4" />,
+    desc: "공급망 디지털 트윈 — 실시간 재고·납기·리스크 네트워크 + 충격 시뮬레이션",
+    phase: 5,
+    status: "in_progress",
+    progress: 85,
+    companies: [
+      { name: "A업체", done: true },
+      { name: "B업체", done: false },
+      { name: "C업체", done: false },
+      { name: "D업체", done: false },
+    ],
+    inputTypes: ["APS Planner 수급 데이터", "News Monitor 리스크"],
+    outputTypes: ["공급망 노드 맵", "충격 전파 시뮬레이션", "대안 경로 제안"],
+    eta: "2027 Q2",
+  },
+  {
+    id: 22,
+    name: "Data Lineage",
+    nameEn: "Data Lineage",
+    icon: <GitBranch className="w-4 h-4" />,
+    desc: "필드 단위 데이터 계보 DAG — 소스·변환·목적지 추적 + 품질 이력",
+    phase: 5,
+    status: "in_progress",
+    progress: 85,
+    companies: [
+      { name: "A업체", done: true },
+      { name: "B업체", done: false },
+      { name: "C업체", done: false },
+      { name: "D업체", done: false },
+    ],
+    inputTypes: ["Schema Mapping 결과", "Data Cleaner 변환 룰"],
+    outputTypes: ["DAG 계보 그래프", "변환 이력", "품질 점수 추이"],
+    eta: "2027 Q2",
+  },
+  {
+    id: 23,
+    name: "Governance Dashboard",
+    nameEn: "Governance",
+    icon: <CheckSquare className="w-4 h-4" />,
+    desc: "데이터 거버넌스 통합 대시보드 — 도메인 오너십·SLA·감사로그·컴플라이언스",
+    phase: 5,
+    status: "in_progress",
+    progress: 85,
+    companies: [
+      { name: "A업체", done: true },
+      { name: "B업체", done: false },
+      { name: "C업체", done: false },
+      { name: "D업체", done: false },
+    ],
+    inputTypes: ["전체 도메인 메타데이터", "감사 이벤트 로그"],
+    outputTypes: ["오너십 매트릭스", "SLA 게이지", "컴플라이언스 체크리스트"],
+    eta: "2027 Q2",
   },
 ];
 
@@ -405,6 +500,16 @@ const mvpConfig = {
     badge: "bg-orange-600 text-white",
     bar: "bg-orange-500",
     eta: "2027 Q1–Q2",
+  },
+  5: {
+    label: "MVP 5",
+    sub: "AI 자동화 + 운영 고도화",
+    color: "purple",
+    bg: "bg-purple-50",
+    border: "border-purple-200",
+    badge: "bg-purple-600 text-white",
+    bar: "bg-purple-500",
+    eta: "2027 Q2–Q3",
   },
 };
 
@@ -468,7 +573,7 @@ export default function Roadmap() {
             <span className="text-slate-400">예정 {modules.length - totalDone - totalInProgress}개</span>
           </div>
         </div>
-        {([1, 2, 3, 4] as MvpPhase[]).map(phase => {
+        {([1, 2, 3, 4, 5] as MvpPhase[]).map(phase => {
           const cfg = mvpConfig[phase];
           const prog = mvpProgress(phase);
           return (
@@ -488,7 +593,7 @@ export default function Roadmap() {
 
       {viewMode === "lane" ? (
         <div className="space-y-8">
-          {([1, 2, 3, 4] as MvpPhase[]).map(phase => {
+          {([1, 2, 3, 4, 5] as MvpPhase[]).map(phase => {
             const cfg = mvpConfig[phase];
             const mods = mvpModules(phase);
             return (

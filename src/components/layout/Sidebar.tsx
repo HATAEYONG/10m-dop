@@ -25,6 +25,11 @@ import {
   Mail,
   Newspaper,
   CalendarClock,
+  RadioTower,
+  Cpu,
+  Network as NetworkIcon,
+  GitMerge,
+  ShieldCheck,
 } from "lucide-react";
 
 const nav = [
@@ -47,6 +52,11 @@ const nav = [
   { href: "/email-parser", icon: Mail, label: "Email Parser", sub: "이메일·메신저 파싱" },
   { href: "/news-monitor", icon: Newspaper, label: "News Monitor", sub: "공급망 위험 탐지" },
   { href: "/aps-planner", icon: CalendarClock, label: "APS Planner", sub: "수급 계획·납기 관리" },
+  { href: "/sensor-gateway", icon: RadioTower, label: "Sensor Gateway", sub: "설비·PLC·센서 프로토콜" },
+  { href: "/auto-onboarding", icon: Cpu, label: "Auto Onboarding", sub: "AI 자율 파이프라인 실행" },
+  { href: "/supply-chain-twin", icon: NetworkIcon, label: "Supply Chain Twin", sub: "공급망 디지털 트윈" },
+  { href: "/data-lineage", icon: GitMerge, label: "Data Lineage", sub: "필드 단위 계보 추적" },
+  { href: "/governance", icon: ShieldCheck, label: "Governance", sub: "오너십·SLA·컴플라이언스" },
   { href: "/roadmap", icon: Map, label: "Roadmap", sub: "개발 현황 · 내부용" },
 ];
 
@@ -87,10 +97,10 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-slate-700 shrink-0">
-        <div className="text-xs text-slate-500">MVP 4 · API + Email + News + APS</div>
+        <div className="text-xs text-slate-500">MVP 5 · AI 자동화 + 운영 고도화</div>
         <div className="flex gap-1 mt-2 flex-wrap">
-          {["API", "Email", "News", "APS"].map(t => (
-            <span key={t} className="text-xs bg-orange-900 text-orange-300 px-2 py-0.5 rounded-full">{t}</span>
+          {["Auto", "Twin", "Lineage", "Gov"].map(t => (
+            <span key={t} className="text-xs bg-purple-900 text-purple-300 px-2 py-0.5 rounded-full">{t}</span>
           ))}
         </div>
       </div>
