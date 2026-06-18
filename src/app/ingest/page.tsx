@@ -238,7 +238,8 @@ function StepBar({ steps }: { steps: StepState[] }) {
 export default function IngestPage() {
   const [tags, setTags] = useState<Tag[]>(INIT_TAGS);
   const [selected, setSelected] = useState<string>("erp");
-  const [activeTab, setActiveTab] = useState<"sources" | "pdf" | "domains">("sources");
+  const [activeTab, setActiveTab] = useState<"sources" | "pdf" | "domains" | "schema">("sources");
+  const [schemaSource, setSchemaSource] = useState<string>("erp");
   const [totalEvents, setTotalEvents] = useState(4820);
   const tickRef = useRef(0);
 
@@ -304,6 +305,7 @@ export default function IngestPage() {
           { id: "sources",  label: "데이터 소스 연결" },
           { id: "pdf",      label: "비정형 AI 파싱" },
           { id: "domains",  label: "10M 도메인 분류 결과" },
+          { id: "schema",   label: "연결 테이블 설계" },
         ].map(t => (
           <button
             key={t.id}
@@ -597,6 +599,13 @@ export default function IngestPage() {
       )}
 
       {/* ══════════════════════════════════
+          TAB 4: 연결 테이블 설계
+      ══════════════════════════════════ */}
+      {activeTab === "schema" && (
+        <SchemaTab selected={schemaSource} onSelect={setSchemaSource} />
+      )}
+
+      {/* ══════════════════════════════════
           TAB 3: 10M 도메인 분류 결과
       ══════════════════════════════════ */}
       {activeTab === "domains" && (
@@ -671,6 +680,351 @@ export default function IngestPage() {
         </div>
       )}
 
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+//  연결 테이블 설계 — 데이터 정의
+// ────────────────────────────────────────────────────────────
+type ColKind = "PK" | "FK" | "IDX" | "";
+interface ColDef { name: string; type: string; nullable: boolean; kind: ColKind; desc: string; sample: string; domain?: string; }
+interface TableDef { name: string; layer: "RAW" | "STAGING" | "CANONICAL"; desc: string; cols: ColDef[]; }
+interface SourceSchema { id: string; label: string; color: string; system: string; connType: string; connDetail: string; tables: TableDef[]; }
+
+const SCHEMA_SOURCES: SourceSchema[] = [
+  {
+    id: "erp", label: "더존 iCUBE ERP", color: "blue", system: "Oracle 19c",
+    connType: "JDBC", connDetail: "jdbc:oracle:thin:@192.168.10.5:1521:ERPDB",
+    tables: [
+      { name: "raw_erp_material", layer: "RAW", desc: "자재 마스터 — 원자재·부품·반제품 기준 정보",
+        cols: [
+          { name: "raw_id",      type: "BIGINT",        nullable: false, kind: "PK",  desc: "RAW 적재 고유키",       sample: "1001",                     domain: "" },
+          { name: "mat_cd",      type: "VARCHAR(20)",   nullable: false, kind: "IDX", desc: "더존 자재코드",          sample: "AL6061-T6",                 domain: "Material.mat_cd" },
+          { name: "mat_nm",      type: "VARCHAR(100)",  nullable: false, kind: "",    desc: "자재명",                sample: "알루미늄 합금 봉재",          domain: "Material.mat_nm" },
+          { name: "mat_spec",    type: "VARCHAR(200)",  nullable: true,  kind: "",    desc: "자재 규격",              sample: "Ø50×L3000",                 domain: "Material.spec" },
+          { name: "unit_cd",     type: "VARCHAR(10)",   nullable: false, kind: "",    desc: "단위코드",               sample: "EA",                        domain: "Material.unit" },
+          { name: "std_qty",     type: "DECIMAL(15,3)", nullable: true,  kind: "",    desc: "표준 수량",              sample: "100.000",                   domain: "" },
+          { name: "safe_qty",    type: "DECIMAL(15,3)", nullable: true,  kind: "",    desc: "안전 재고",              sample: "300.000",                   domain: "" },
+          { name: "supplier_cd", type: "VARCHAR(20)",   nullable: true,  kind: "FK",  desc: "주 공급처 코드",         sample: "SUP-001",                   domain: "Supplier.sup_cd" },
+          { name: "ingested_at", type: "TIMESTAMP",     nullable: false, kind: "",    desc: "DOP 적재 일시",         sample: "2026-06-18 14:23:00",       domain: "" },
+          { name: "src_updated", type: "TIMESTAMP",     nullable: true,  kind: "",    desc: "ERP 원본 수정 일시",    sample: "2026-06-17 09:11:00",       domain: "" },
+        ],
+      },
+      { name: "raw_erp_order", layer: "RAW", desc: "수주 마스터 — 고객사 발주·납기 기준",
+        cols: [
+          { name: "raw_id",      type: "BIGINT",        nullable: false, kind: "PK",  desc: "RAW 적재 고유키",   sample: "2001",                  domain: "" },
+          { name: "ord_no",      type: "VARCHAR(30)",   nullable: false, kind: "IDX", desc: "수주번호",           sample: "ORD-2026-0412",         domain: "Order.ord_no" },
+          { name: "ord_dt",      type: "DATE",          nullable: false, kind: "",    desc: "수주일",             sample: "2026-06-10",            domain: "Order.ord_dt" },
+          { name: "due_dt",      type: "DATE",          nullable: false, kind: "",    desc: "납기일",             sample: "2026-06-21",            domain: "Order.due_dt" },
+          { name: "cust_cd",     type: "VARCHAR(20)",   nullable: false, kind: "FK",  desc: "고객코드",           sample: "CUST-SAMSUNG",          domain: "Customer.cust_cd" },
+          { name: "item_cd",     type: "VARCHAR(20)",   nullable: false, kind: "FK",  desc: "품목코드",           sample: "PRD-BRK-001",           domain: "Product.prod_cd" },
+          { name: "ord_qty",     type: "DECIMAL(15,3)", nullable: false, kind: "",    desc: "수주 수량",          sample: "500.000",               domain: "Order.qty" },
+          { name: "unit_price",  type: "DECIMAL(15,2)", nullable: true,  kind: "",    desc: "단가",               sample: "12500.00",              domain: "Order.unit_price" },
+          { name: "status_cd",   type: "VARCHAR(10)",   nullable: false, kind: "",    desc: "상태 (01=접수)",     sample: "01",                    domain: "Order.status" },
+          { name: "ingested_at", type: "TIMESTAMP",     nullable: false, kind: "",    desc: "DOP 적재 일시",     sample: "2026-06-18 14:23:00",   domain: "" },
+        ],
+      },
+      { name: "raw_erp_supplier", layer: "RAW", desc: "거래처 마스터 — 협력사·공급사 기준 정보",
+        cols: [
+          { name: "raw_id",      type: "BIGINT",       nullable: false, kind: "PK",  desc: "RAW 적재 고유키", sample: "3001",          domain: "" },
+          { name: "sup_cd",      type: "VARCHAR(20)",  nullable: false, kind: "IDX", desc: "거래처코드",       sample: "SUP-001",        domain: "Supplier.sup_cd" },
+          { name: "sup_nm",      type: "VARCHAR(100)", nullable: false, kind: "",    desc: "거래처명",         sample: "㈜대성금속",      domain: "Supplier.sup_nm" },
+          { name: "biz_no",      type: "CHAR(10)",     nullable: true,  kind: "",    desc: "사업자등록번호",   sample: "1234567890",     domain: "Supplier.biz_no" },
+          { name: "tel",         type: "VARCHAR(20)",  nullable: true,  kind: "",    desc: "전화번호",         sample: "031-123-4567",   domain: "Supplier.tel" },
+          { name: "addr",        type: "VARCHAR(200)", nullable: true,  kind: "",    desc: "주소",             sample: "경기도 안산시",  domain: "Supplier.addr" },
+          { name: "grade_cd",    type: "VARCHAR(5)",   nullable: true,  kind: "",    desc: "협력사 등급",      sample: "A",              domain: "Supplier.grade" },
+          { name: "ingested_at", type: "TIMESTAMP",    nullable: false, kind: "",    desc: "DOP 적재 일시",   sample: "2026-06-18 14:23:00", domain: "" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "mes", label: "자체 MES", color: "violet", system: "MySQL 8.0",
+    connType: "JDBC / CSV 배치", connDetail: "jdbc:mysql://192.168.10.10:3306/mesdb",
+    tables: [
+      { name: "raw_mes_work_order", layer: "RAW", desc: "작업 지시 — 공정별 생산 계획·실적",
+        cols: [
+          { name: "raw_id",     type: "BIGINT",        nullable: false, kind: "PK",  desc: "RAW 적재 고유키",        sample: "5001",               domain: "" },
+          { name: "wo_no",      type: "VARCHAR(30)",   nullable: false, kind: "IDX", desc: "작업지시번호",            sample: "WO-2026-1842",        domain: "Process.wo_no" },
+          { name: "proc_cd",    type: "VARCHAR(20)",   nullable: false, kind: "",    desc: "공정코드",                sample: "CNC-M001",            domain: "Process.proc_cd" },
+          { name: "proc_nm",    type: "VARCHAR(100)",  nullable: false, kind: "",    desc: "공정명",                  sample: "황삭 가공",            domain: "Process.proc_nm" },
+          { name: "equip_cd",   type: "VARCHAR(20)",   nullable: false, kind: "FK",  desc: "설비코드",                sample: "EQ-CNC-01",           domain: "Machine.equip_cd" },
+          { name: "plan_qty",   type: "DECIMAL(15,3)", nullable: false, kind: "",    desc: "계획 수량",               sample: "100.000",             domain: "" },
+          { name: "actual_qty", type: "DECIMAL(15,3)", nullable: true,  kind: "",    desc: "실적 수량",               sample: "98.000",              domain: "Process.actual_qty" },
+          { name: "defect_qty", type: "DECIMAL(15,3)", nullable: true,  kind: "",    desc: "불량 수량",               sample: "2.000",               domain: "Measurement.defect_qty" },
+          { name: "start_dt",   type: "DATETIME",      nullable: true,  kind: "",    desc: "작업 시작",               sample: "2026-06-18 08:00",    domain: "" },
+          { name: "end_dt",     type: "DATETIME",      nullable: true,  kind: "",    desc: "작업 종료",               sample: "2026-06-18 12:30",    domain: "" },
+          { name: "ingested_at",type: "TIMESTAMP",     nullable: false, kind: "",    desc: "DOP 적재 일시",          sample: "2026-06-18 14:23:00", domain: "" },
+        ],
+      },
+      { name: "raw_mes_machine_log", layer: "RAW", desc: "설비 가동 로그 — 시간별 설비 상태·KPI",
+        cols: [
+          { name: "raw_id",      type: "BIGINT",        nullable: false, kind: "PK",  desc: "RAW 적재 고유키",         sample: "9001",               domain: "" },
+          { name: "log_dt",      type: "DATETIME",      nullable: false, kind: "IDX", desc: "로그 일시 (1분 단위)",    sample: "2026-06-18 14:00",    domain: "" },
+          { name: "equip_cd",    type: "VARCHAR(20)",   nullable: false, kind: "IDX", desc: "설비코드",                sample: "EQ-CNC-01",           domain: "Machine.equip_cd" },
+          { name: "equip_nm",    type: "VARCHAR(100)",  nullable: true,  kind: "",    desc: "설비명",                  sample: "CNC 가공기 #1",        domain: "Machine.equip_nm" },
+          { name: "status_cd",   type: "VARCHAR(5)",    nullable: false, kind: "",    desc: "가동상태 (RUN/IDLE/ERR)", sample: "RUN",                 domain: "Machine.status" },
+          { name: "spindle_rpm", type: "DECIMAL(10,2)", nullable: true,  kind: "",    desc: "주축 회전수 (rpm)",       sample: "1420.00",             domain: "Machine.spindle_rpm" },
+          { name: "feed_rate",   type: "DECIMAL(10,2)", nullable: true,  kind: "",    desc: "이송속도 (mm/min)",       sample: "850.00",              domain: "Machine.feed_rate" },
+          { name: "utilization", type: "DECIMAL(5,2)",  nullable: true,  kind: "",    desc: "가동률 (%)",              sample: "87.50",               domain: "Machine.utilization" },
+          { name: "alarm_cd",    type: "VARCHAR(20)",   nullable: true,  kind: "",    desc: "알람코드 (정상=NULL)",    sample: "NULL",                domain: "Maintenance.alarm_cd" },
+          { name: "ingested_at", type: "TIMESTAMP",     nullable: false, kind: "",    desc: "DOP 적재 일시",          sample: "2026-06-18 14:23:00", domain: "" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "sensor", label: "OPC-UA / Modbus", color: "emerald", system: "TimescaleDB (PostgreSQL 16)",
+    connType: "Node-RED → Kafka → TimescaleDB", connDetail: "opc.tcp://192.168.10.20:4840  |  modbus-tcp://192.168.10.30:502",
+    tables: [
+      { name: "raw_sensor_tag_catalog", layer: "RAW", desc: "센서 태그 카탈로그 — OPC-UA / Modbus 태그 메타",
+        cols: [
+          { name: "tag_id",       type: "SERIAL",       nullable: false, kind: "PK",  desc: "태그 고유 ID",         sample: "1",                domain: "" },
+          { name: "tag_path",     type: "VARCHAR(200)",  nullable: false, kind: "IDX", desc: "태그 노드 경로",       sample: "CNC-01.spindle_rpm", domain: "" },
+          { name: "tag_alias",    type: "VARCHAR(100)",  nullable: true,  kind: "",    desc: "별칭",                 sample: "CNC1_주축회전수",   domain: "" },
+          { name: "protocol",     type: "VARCHAR(20)",   nullable: false, kind: "",    desc: "프로토콜",              sample: "OPC-UA",            domain: "" },
+          { name: "data_type",    type: "VARCHAR(20)",   nullable: false, kind: "",    desc: "OPC 데이터 타입",      sample: "Float",             domain: "" },
+          { name: "eng_unit",     type: "VARCHAR(20)",   nullable: true,  kind: "",    desc: "공학 단위",             sample: "rpm",               domain: "Measurement.unit" },
+          { name: "equip_cd",     type: "VARCHAR(20)",   nullable: true,  kind: "FK",  desc: "연결 설비코드",        sample: "EQ-CNC-01",         domain: "Machine.equip_cd" },
+          { name: "domain_hint",  type: "VARCHAR(30)",   nullable: true,  kind: "",    desc: "10M 도메인 힌트",      sample: "Machine",           domain: "" },
+          { name: "scan_rate_ms", type: "INT",           nullable: false, kind: "",    desc: "수집 주기 (ms)",       sample: "1000",              domain: "" },
+          { name: "active",       type: "BOOLEAN",       nullable: false, kind: "",    desc: "수집 활성 여부",       sample: "true",              domain: "" },
+        ],
+      },
+      { name: "raw_sensor_timeseries", layer: "RAW", desc: "센서 시계열 — TimescaleDB 하이퍼테이블 (파티션: 1일)",
+        cols: [
+          { name: "ts",           type: "TIMESTAMPTZ",       nullable: false, kind: "PK", desc: "타임스탬프 (UTC)",        sample: "2026-06-18 14:23:01.234", domain: "" },
+          { name: "tag_id",       type: "INT",               nullable: false, kind: "PK", desc: "태그 ID (FK)",            sample: "1",                       domain: "" },
+          { name: "value_num",    type: "DOUBLE PRECISION",  nullable: true,  kind: "",   desc: "수치 값",                 sample: "1420.3",                  domain: "Measurement.value" },
+          { name: "value_str",    type: "VARCHAR(100)",      nullable: true,  kind: "",   desc: "문자 값 (상태 태그)",     sample: "RUN",                     domain: "" },
+          { name: "quality",      type: "SMALLINT",          nullable: false, kind: "",   desc: "OPC 품질 (192=GOOD)",     sample: "192",                     domain: "" },
+          { name: "kafka_offset", type: "BIGINT",            nullable: true,  kind: "",   desc: "Kafka 메시지 오프셋",     sample: "8420148",                 domain: "" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "pdf", label: "PDF · 이미지 (비정형)", color: "amber", system: "PostgreSQL 16 + S3",
+    connType: "파일 업로드 / AI OCR 파싱", connDetail: "s3://10m-dop-docs  /  AI Parser API",
+    tables: [
+      { name: "raw_doc_registry", layer: "RAW", desc: "문서 등록부 — 업로드된 모든 비정형 문서 메타",
+        cols: [
+          { name: "doc_id",       type: "BIGSERIAL",    nullable: false, kind: "PK", desc: "문서 고유 ID",        sample: "101",                    domain: "" },
+          { name: "doc_nm",       type: "VARCHAR(255)", nullable: false, kind: "",   desc: "원본 파일명",          sample: "작업표준서_CNC가공_v3.pdf", domain: "" },
+          { name: "doc_type",     type: "VARCHAR(30)",  nullable: false, kind: "",   desc: "문서 유형",            sample: "작업표준서",              domain: "" },
+          { name: "file_ext",     type: "VARCHAR(10)",  nullable: false, kind: "",   desc: "확장자",               sample: "pdf",                    domain: "" },
+          { name: "file_size",    type: "BIGINT",       nullable: false, kind: "",   desc: "파일 크기 (bytes)",   sample: "3145728",                domain: "" },
+          { name: "s3_key",       type: "VARCHAR(500)", nullable: false, kind: "",   desc: "S3 오브젝트 키",      sample: "raw/2026/06/doc_101.pdf", domain: "" },
+          { name: "pages",        type: "INT",          nullable: true,  kind: "",   desc: "총 페이지 수",         sample: "24",                     domain: "" },
+          { name: "parse_status", type: "VARCHAR(20)",  nullable: false, kind: "",   desc: "파싱 상태",            sample: "done",                   domain: "" },
+          { name: "domain_hint",  type: "VARCHAR(30)",  nullable: true,  kind: "",   desc: "추정 10M 도메인",     sample: "Process",                domain: "" },
+          { name: "uploaded_at",  type: "TIMESTAMP",    nullable: false, kind: "",   desc: "업로드 일시",          sample: "2026-06-18 09:00:00",    domain: "" },
+        ],
+      },
+      { name: "raw_doc_content", layer: "RAW", desc: "AI 파싱 결과 — 페이지·표·텍스트 단위 추출 내용",
+        cols: [
+          { name: "content_id",   type: "BIGSERIAL",    nullable: false, kind: "PK", desc: "콘텐츠 고유 ID",       sample: "5001",                        domain: "" },
+          { name: "doc_id",       type: "BIGINT",       nullable: false, kind: "FK", desc: "문서 ID",              sample: "101",                         domain: "" },
+          { name: "page_no",      type: "INT",          nullable: false, kind: "",   desc: "페이지 번호",           sample: "14",                          domain: "" },
+          { name: "content_type", type: "VARCHAR(20)",  nullable: false, kind: "",   desc: "콘텐츠 유형 (text/table/image)", sample: "table",           domain: "" },
+          { name: "raw_text",     type: "TEXT",         nullable: true,  kind: "",   desc: "추출된 원본 텍스트",   sample: "공정: 황삭 가공...",           domain: "" },
+          { name: "parsed_json",  type: "JSONB",        nullable: true,  kind: "",   desc: "구조화된 파싱 결과",   sample: `{"proc_cd":"CNC-M001"}`,      domain: "" },
+          { name: "confidence",   type: "DECIMAL(4,3)", nullable: true,  kind: "",   desc: "AI 신뢰도 (0~1)",      sample: "0.920",                       domain: "" },
+          { name: "domain_map",   type: "VARCHAR(30)",  nullable: true,  kind: "",   desc: "10M 도메인 분류",      sample: "Process",                     domain: "" },
+          { name: "embed_vector", type: "vector(1536)", nullable: true,  kind: "",   desc: "임베딩 벡터 (pgvector)", sample: "[0.021, ...]",              domain: "" },
+          { name: "parsed_at",    type: "TIMESTAMP",    nullable: false, kind: "",   desc: "파싱 완료 일시",       sample: "2026-06-18 09:45:00",         domain: "" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "kakao", label: "카카오톡 발주 메시지", color: "yellow", system: "PostgreSQL 16",
+    connType: "카카오 Open API → 웹훅", connDetail: "https://kapi.kakao.com/v1/biz/message  (API 키 미설정)",
+    tables: [
+      { name: "raw_msg_order", layer: "RAW", desc: "카카오톡 발주 메시지 원문 — 비정형 텍스트 발주",
+        cols: [
+          { name: "msg_id",        type: "BIGSERIAL",    nullable: false, kind: "PK", desc: "메시지 고유 ID",      sample: "7001",                   domain: "" },
+          { name: "channel_id",    type: "VARCHAR(50)",  nullable: false, kind: "",   desc: "카카오 비즈채널 ID", sample: "CH-HKPM-001",            domain: "" },
+          { name: "sender_id",     type: "VARCHAR(50)",  nullable: false, kind: "",   desc: "발신자 ID",           sample: "user_samsung_buyer01",   domain: "" },
+          { name: "sender_nm",     type: "VARCHAR(100)", nullable: true,  kind: "",   desc: "발신자명",             sample: "삼성전자 구매1팀 이대리", domain: "Customer.contact" },
+          { name: "raw_text",      type: "TEXT",         nullable: false, kind: "",   desc: "메시지 원문",          sample: "브라켓 500EA 6/21까지...", domain: "" },
+          { name: "sent_at",       type: "TIMESTAMP",    nullable: false, kind: "",   desc: "메시지 발송 시각",    sample: "2026-06-18 10:15:32",    domain: "" },
+          { name: "parse_status",  type: "VARCHAR(20)",  nullable: false, kind: "",   desc: "AI 파싱 상태",         sample: "pending",                domain: "" },
+          { name: "parsed_ord_no", type: "VARCHAR(30)",  nullable: true,  kind: "",   desc: "파싱된 수주번호",      sample: "NULL (미파싱)",           domain: "Order.ord_no" },
+          { name: "parsed_qty",    type: "DECIMAL(15,3)",nullable: true,  kind: "",   desc: "파싱된 수량",          sample: "NULL (미파싱)",           domain: "Order.qty" },
+          { name: "ingested_at",   type: "TIMESTAMP",    nullable: false, kind: "",   desc: "DOP 적재 일시",       sample: "(API 미연결)",            domain: "" },
+        ],
+      },
+    ],
+  },
+];
+
+// ────────────────────────────────────────────────────────────
+//  연결 테이블 설계 탭
+// ────────────────────────────────────────────────────────────
+const LAYER_CONF = {
+  RAW:       { bg: "bg-slate-100",   text: "text-slate-600" },
+  STAGING:   { bg: "bg-blue-100",    text: "text-blue-700" },
+  CANONICAL: { bg: "bg-emerald-100", text: "text-emerald-700" },
+};
+const KIND_CONF: Record<ColKind, { label: string; bg: string; text: string }> = {
+  PK:  { label: "PK",  bg: "bg-amber-100",  text: "text-amber-700" },
+  FK:  { label: "FK",  bg: "bg-violet-100", text: "text-violet-700" },
+  IDX: { label: "IDX", bg: "bg-blue-100",   text: "text-blue-700" },
+  "":  { label: "",    bg: "",              text: "" },
+};
+const SRC_BTN: Record<string, string> = {
+  blue:   "bg-blue-600 text-white",
+  violet: "bg-violet-600 text-white",
+  emerald:"bg-emerald-600 text-white",
+  amber:  "bg-amber-500 text-white",
+  yellow: "bg-yellow-500 text-white",
+};
+const SRC_BORDER: Record<string, string> = {
+  blue: "border-blue-200", violet: "border-violet-200", emerald: "border-emerald-200",
+  amber: "border-amber-200", yellow: "border-yellow-200",
+};
+
+function SchemaTab({ selected, onSelect }: { selected: string; onSelect: (id: string) => void }) {
+  const src = SCHEMA_SOURCES.find(s => s.id === selected)!;
+  const [activeTable, setActiveTable] = useState(src.tables[0].name);
+
+  const handleSrcChange = (id: string) => {
+    onSelect(id);
+    const s = SCHEMA_SOURCES.find(x => x.id === id)!;
+    setActiveTable(s.tables[0].name);
+  };
+
+  const table = src.tables.find(t => t.name === activeTable) ?? src.tables[0];
+  const totalCols = src.tables.reduce((a, t) => a + t.cols.length, 0);
+
+  return (
+    <div className="space-y-4">
+      {/* 범례 */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-xs font-semibold text-slate-400">범례:</span>
+        {(["PK","FK","IDX"] as ColKind[]).map(k => (
+          <span key={k} className={`text-xs px-2 py-0.5 rounded font-mono font-bold ${KIND_CONF[k].bg} ${KIND_CONF[k].text}`}>{k}</span>
+        ))}
+        <span className="text-xs px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-mono">→ 10M 매핑</span>
+        <span className="text-xs px-2 py-0.5 rounded bg-rose-50 text-rose-600 font-semibold">N = NOT NULL</span>
+        <span className="ml-auto text-xs text-slate-400">선택 소스: {src.tables.length}테이블 · {totalCols}컬럼</span>
+      </div>
+
+      <div className="grid grid-cols-5 gap-5">
+        {/* 소스·테이블 선택 */}
+        <div className="col-span-1 space-y-3">
+          <div className="space-y-1">
+            {SCHEMA_SOURCES.map(s => (
+              <button key={s.id} onClick={() => handleSrcChange(s.id)}
+                className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                  selected === s.id ? SRC_BTN[s.color] : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300"
+                }`}>
+                <div className="truncate">{s.label}</div>
+                <div className={`text-xs font-normal mt-0.5 ${selected === s.id ? "opacity-70" : "text-slate-400"}`}>{s.tables.length}테이블</div>
+              </button>
+            ))}
+          </div>
+
+          <div className={`rounded-xl border ${SRC_BORDER[src.color]} p-2 space-y-1`}>
+            <p className="text-xs font-bold text-slate-400 px-2 pb-1">테이블 목록</p>
+            {src.tables.map(t => (
+              <button key={t.name} onClick={() => setActiveTable(t.name)}
+                className={`w-full text-left px-2 py-2 rounded-lg text-xs transition-all ${
+                  activeTable === t.name ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}>
+                <div className="font-mono font-semibold truncate">{t.name}</div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className={`text-xs px-1 rounded ${LAYER_CONF[t.layer].bg} ${LAYER_CONF[t.layer].text}`}>{t.layer}</span>
+                  <span className={`text-xs ${activeTable === t.name ? "text-slate-400" : "text-slate-300"}`}>{t.cols.length}col</span>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="bg-slate-900 rounded-xl p-3 space-y-2 text-xs">
+            <p className="font-bold text-slate-400">연결 정보</p>
+            <div><span className="text-slate-500">시스템</span><br /><span className="text-slate-200 font-mono">{src.system}</span></div>
+            <div><span className="text-slate-500">유형</span><br /><span className="text-blue-300">{src.connType}</span></div>
+            <div className="pt-2 border-t border-slate-700 break-all">
+              <span className="text-slate-500">DSN</span><br />
+              <span className="text-emerald-400 font-mono leading-relaxed">{src.connDetail}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 컬럼 테이블 */}
+        <div className="col-span-4 space-y-3">
+          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-mono font-bold text-slate-900 text-base">{table.name}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded font-semibold ${LAYER_CONF[table.layer].bg} ${LAYER_CONF[table.layer].text}`}>{table.layer}</span>
+                </div>
+                <p className="text-sm text-slate-500">{table.desc}</p>
+              </div>
+              <div className="text-right text-xs text-slate-400 space-y-0.5">
+                <div>{table.cols.length}개 컬럼</div>
+                <div className="text-rose-500 font-semibold">{table.cols.filter(c => !c.nullable).length}개 NOT NULL</div>
+                <div className="text-emerald-600">{table.cols.filter(c => c.domain).length}개 10M 매핑</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="text-left px-3 py-2.5 font-semibold text-slate-400 w-12">키</th>
+                    <th className="text-left px-3 py-2.5 font-semibold text-slate-500">컬럼명</th>
+                    <th className="text-left px-3 py-2.5 font-semibold text-slate-500">데이터 타입</th>
+                    <th className="text-center px-3 py-2.5 font-semibold text-slate-500 w-12">NULL</th>
+                    <th className="text-left px-3 py-2.5 font-semibold text-slate-500">설명</th>
+                    <th className="text-left px-3 py-2.5 font-semibold text-slate-500">샘플 값</th>
+                    <th className="text-left px-3 py-2.5 font-semibold text-slate-500">10M 도메인 매핑</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {table.cols.map((col, i) => (
+                    <tr key={col.name} className={`hover:bg-blue-50/30 transition-colors ${i % 2 === 1 ? "bg-slate-50/40" : ""}`}>
+                      <td className="px-3 py-2.5">
+                        {col.kind && (
+                          <span className={`px-1.5 py-0.5 rounded font-mono font-bold ${KIND_CONF[col.kind].bg} ${KIND_CONF[col.kind].text}`}>
+                            {col.kind}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 font-mono font-semibold">
+                        <span className={
+                          col.kind === "PK" ? "text-amber-700" :
+                          col.kind === "FK" ? "text-violet-700" : "text-slate-800"
+                        }>{col.name}</span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="font-mono text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded whitespace-nowrap">{col.type}</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        {col.nullable ? <span className="text-slate-300">Y</span> : <span className="font-bold text-rose-500">N</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-slate-600">{col.desc}</td>
+                      <td className="px-3 py-2.5 font-mono text-slate-400 text-xs whitespace-nowrap">{col.sample}</td>
+                      <td className="px-3 py-2.5">
+                        {col.domain
+                          ? <span className="font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-xs">{col.domain}</span>
+                          : <span className="text-slate-200">—</span>
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
