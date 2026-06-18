@@ -238,7 +238,7 @@ function StepBar({ steps }: { steps: StepState[] }) {
 export default function IngestPage() {
   const [tags, setTags] = useState<Tag[]>(INIT_TAGS);
   const [selected, setSelected] = useState<string>("erp");
-  const [activeTab, setActiveTab] = useState<"sources" | "pdf" | "domains" | "schema">("sources");
+  const [activeTab, setActiveTab] = useState<"sources" | "pdf" | "domains" | "schema" | "profile" | "pipeline">("sources");
   const [schemaSource, setSchemaSource] = useState<string>("erp");
   const [totalEvents, setTotalEvents] = useState(4820);
   const tickRef = useRef(0);
@@ -306,6 +306,8 @@ export default function IngestPage() {
           { id: "pdf",      label: "비정형 AI 파싱" },
           { id: "domains",  label: "10M 도메인 분류 결과" },
           { id: "schema",   label: "연결 테이블 설계" },
+          { id: "profile",  label: "데이터 프로파일링" },
+          { id: "pipeline", label: "파이프라인 모니터" },
         ].map(t => (
           <button
             key={t.id}
@@ -604,6 +606,16 @@ export default function IngestPage() {
       {activeTab === "schema" && (
         <SchemaTab selected={schemaSource} onSelect={setSchemaSource} />
       )}
+
+      {/* ══════════════════════════════════
+          TAB 5: 데이터 프로파일링
+      ══════════════════════════════════ */}
+      {activeTab === "profile" && <ProfileTab />}
+
+      {/* ══════════════════════════════════
+          TAB 6: 파이프라인 모니터
+      ══════════════════════════════════ */}
+      {activeTab === "pipeline" && <PipelineMonitorTab />}
 
       {/* ══════════════════════════════════
           TAB 3: 10M 도메인 분류 결과
@@ -1243,6 +1255,474 @@ function SchemaTab({ selected, onSelect }: { selected: string; onSelect: (id: st
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TAB 5 — 데이터 프로파일링
+// ═══════════════════════════════════════════════════════════════
+interface ColumnProfile {
+  col: string;
+  type: string;
+  domain: string;
+  total: number;
+  nullCnt: number;
+  nullPct: number;
+  distinct: number;
+  distPct: number;
+  min: string;
+  max: string;
+  avg?: string;
+  topValues: { val: string; cnt: number }[];
+  anomaly: "none" | "warn" | "error";
+  anomalyNote?: string;
+}
+
+interface TableProfile {
+  table: string;
+  source: string;
+  rows: number;
+  cols: ColumnProfile[];
+}
+
+const PROFILE_TABLES: TableProfile[] = [
+  {
+    table: "raw_erp_material", source: "더존 iCUBE ERP", rows: 8420,
+    cols: [
+      { col: "mat_cd",      type: "VARCHAR", domain: "Material.mat_cd",  total: 8420, nullCnt: 0,   nullPct: 0,    distinct: 8420, distPct: 100,  min: "AL1060",      max: "ZN-ALLOY",    topValues: [{val:"AL6061-T6",cnt:124},{val:"STS304",cnt:98},{val:"S45C",cnt:87}],   anomaly: "none" },
+      { col: "mat_nm",      type: "VARCHAR", domain: "Material.mat_nm",  total: 8420, nullCnt: 12,  nullPct: 0.14, distinct: 8201, distPct: 97.4, min: "각파이프",      max: "황동봉",       topValues: [{val:"알루미늄 봉재",cnt:248},{val:"STS 판재",cnt:184}],                  anomaly: "warn",  anomalyNote: "null 12건 — 자재명 미입력" },
+      { col: "unit_cd",     type: "VARCHAR", domain: "Material.unit",    total: 8420, nullCnt: 0,   nullPct: 0,    distinct: 8,    distPct: 0.09, min: "BOX",         max: "TON",         topValues: [{val:"EA",cnt:5840},{val:"KG",cnt:1420},{val:"M",cnt:840},{val:"L",cnt:320}], anomaly: "none" },
+      { col: "safe_qty",    type: "DECIMAL", domain: "",                 total: 8420, nullCnt: 1240, nullPct:14.7, distinct: 1820, distPct: 21.6, min: "0.000",       max: "99999.000", avg: "248.4",  topValues: [{val:"100.000",cnt:384},{val:"0.000",cnt:298}],                  anomaly: "warn",  anomalyNote: "null 14.7% — 안전재고 미설정 품목 과다" },
+      { col: "supplier_cd", type: "VARCHAR", domain: "Supplier.sup_cd", total: 8420, nullCnt: 320, nullPct: 3.8,  distinct: 42,   distPct: 0.5,  min: "SUP-001",     max: "SUP-098",     topValues: [{val:"SUP-001",cnt:1240},{val:"SUP-012",cnt:984}],                       anomaly: "none" },
+      { col: "ingested_at", type: "TIMESTAMP",domain: "",               total: 8420, nullCnt: 0,   nullPct: 0,    distinct: 1,    distPct: 0.01, min: "2026-06-18",  max: "2026-06-18",  topValues: [{val:"2026-06-18 14:23",cnt:8420}],                                      anomaly: "none" },
+    ],
+  },
+  {
+    table: "raw_mes_machine_log", source: "자체 MES", rows: 182400,
+    cols: [
+      { col: "equip_cd",    type: "VARCHAR", domain: "Machine.equip_cd",    total: 182400, nullCnt: 0,    nullPct: 0,    distinct: 12,   distPct: 0.007, min: "EQ-CNC-01", max: "EQ-PRESS-02", topValues: [{val:"EQ-CNC-01",cnt:48200},{val:"EQ-CNC-02",cnt:45800}], anomaly: "none" },
+      { col: "status_cd",   type: "VARCHAR", domain: "Machine.status",       total: 182400, nullCnt: 0,    nullPct: 0,    distinct: 4,    distPct: 0.002, min: "ERR",       max: "RUN",         topValues: [{val:"RUN",cnt:142800},{val:"IDLE",cnt:32100},{val:"ERR",cnt:5200},{val:"DOWN",cnt:2300}], anomaly: "warn", anomalyNote: "ERR 5,200건 (2.9%) — 최근 30일 증가 추세" },
+      { col: "spindle_rpm", type: "DECIMAL", domain: "Machine.spindle_rpm",  total: 182400, nullCnt: 8200, nullPct: 4.5,  distinct: 12840, distPct: 7.0,  min: "0.00",      max: "4120.00",   avg: "1384.2", topValues: [{val:"0.00",cnt:8200},{val:"1500.00",cnt:4820}], anomaly: "warn", anomalyNote: "최댓값 4120rpm — 설계 상한(4000rpm) 초과 28건" },
+      { col: "feed_rate",   type: "DECIMAL", domain: "Machine.feed_rate",    total: 182400, nullCnt: 8200, nullPct: 4.5,  distinct: 9840,  distPct: 5.4,  min: "0.00",      max: "3200.00",   avg: "842.6",  topValues: [{val:"0.00",cnt:8200}],                           anomaly: "none" },
+      { col: "utilization", type: "DECIMAL", domain: "Machine.utilization",  total: 182400, nullCnt: 420,  nullPct: 0.23, distinct: 9200,  distPct: 5.0,  min: "0.00",      max: "100.00",    avg: "78.4",   topValues: [{val:"100.00",cnt:1240},{val:"0.00",cnt:420}],    anomaly: "none" },
+      { col: "alarm_cd",    type: "VARCHAR", domain: "Maintenance.alarm_cd", total: 182400, nullCnt: 174800,nullPct:95.8, distinct: 18,   distPct: 0.01,  min: "ALM-001",   max: "ALM-TEMP",    topValues: [{val:"NULL",cnt:174800},{val:"ALM-TEMP",cnt:4200},{val:"ALM-VIB",cnt:2800}], anomaly: "none" },
+    ],
+  },
+  {
+    table: "raw_sensor_timeseries", source: "OPC-UA / Modbus", rows: 4820000,
+    cols: [
+      { col: "ts",         type: "TIMESTAMPTZ", domain: "",               total: 4820000, nullCnt: 0,  nullPct: 0,   distinct: 4820000, distPct: 100,  min: "2026-05-19", max: "2026-06-18", topValues: [],                                                            anomaly: "none" },
+      { col: "value_num",  type: "DOUBLE",      domain: "Measurement.value", total: 4820000, nullCnt: 24800, nullPct: 0.51, distinct: 248000, distPct: 5.1, min: "-0.12", max: "4128.4", avg: "742.3", topValues: [],                                                 anomaly: "error", anomalyNote: "음수값 842건 — CNC-04 공구마모 태그 센서 오류 의심" },
+      { col: "quality",    type: "SMALLINT",    domain: "",               total: 4820000, nullCnt: 0,  nullPct: 0,   distinct: 4,       distPct: 0.0001, min: "0",       max: "192",        topValues: [{val:"192(GOOD)",cnt:4782400},{val:"68(UNCERTAIN)",cnt:31200},{val:"0(BAD)",cnt:6400}], anomaly: "warn", anomalyNote: "BAD 품질 6,400건 (0.13%) — 4개 태그 집중" },
+    ],
+  },
+];
+
+const ANOMALY_CONF = {
+  none:  { dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700",  label: "정상" },
+  warn:  { dot: "bg-amber-400",   badge: "bg-amber-50 text-amber-700",     label: "경고" },
+  error: { dot: "bg-rose-500",    badge: "bg-rose-50 text-rose-700",       label: "오류" },
+};
+
+function MiniBar({ pct, color }: { pct: number; color: string }) {
+  return (
+    <div className="flex items-center gap-1.5 w-full">
+      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+      </div>
+      <span className="text-xs text-slate-500 w-10 text-right">{pct.toFixed(1)}%</span>
+    </div>
+  );
+}
+
+function ProfileTab() {
+  const [selectedTable, setSelectedTable] = useState(PROFILE_TABLES[0].table);
+  const [expandedCol, setExpandedCol] = useState<string | null>(null);
+  const tp = PROFILE_TABLES.find(t => t.table === selectedTable)!;
+
+  const warnCols  = tp.cols.filter(c => c.anomaly === "warn").length;
+  const errorCols = tp.cols.filter(c => c.anomaly === "error").length;
+  const avgNull   = (tp.cols.reduce((a, c) => a + c.nullPct, 0) / tp.cols.length).toFixed(1);
+
+  return (
+    <div className="space-y-4">
+      {/* 테이블 선택 탭 */}
+      <div className="flex gap-2 flex-wrap">
+        {PROFILE_TABLES.map(t => {
+          const warns  = t.cols.filter(c => c.anomaly === "warn").length;
+          const errors = t.cols.filter(c => c.anomaly === "error").length;
+          return (
+            <button key={t.table} onClick={() => { setSelectedTable(t.table); setExpandedCol(null); }}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                selectedTable === t.table ? "bg-slate-900 text-white border-slate-900 shadow" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+              }`}>
+              <span className="font-mono">{t.table}</span>
+              <span className={`text-xs ${selectedTable === t.table ? "text-slate-400" : "text-slate-300"}`}>{t.rows.toLocaleString()}rows</span>
+              {errors > 0 && <span className="text-xs bg-rose-500 text-white px-1.5 rounded-full">{errors}</span>}
+              {warns  > 0 && <span className="text-xs bg-amber-400 text-white px-1.5 rounded-full">{warns}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 요약 KPI */}
+      <div className="grid grid-cols-5 gap-3">
+        {[
+          { label: "원천 시스템",    value: tp.source,                                color: "text-slate-700" },
+          { label: "총 행 수",       value: tp.rows.toLocaleString(),                 color: "text-blue-600" },
+          { label: "분석 컬럼 수",   value: `${tp.cols.length}개`,                    color: "text-slate-700" },
+          { label: "평균 NULL율",    value: `${avgNull}%`,                             color: parseFloat(avgNull) > 5 ? "text-amber-600" : "text-emerald-600" },
+          { label: "이상 컬럼",      value: `오류 ${errorCols} / 경고 ${warnCols}`,   color: errorCols > 0 ? "text-rose-600" : warnCols > 0 ? "text-amber-600" : "text-emerald-600" },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+            <p className="text-xs text-slate-400 mb-1">{label}</p>
+            <p className={`text-sm font-bold ${color}`}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* 컬럼 프로파일 테이블 */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-700">컬럼별 프로파일</h3>
+          <div className="flex gap-3 text-xs text-slate-400">
+            {[["bg-rose-400","오류"],["bg-amber-400","경고"],["bg-emerald-400","정상"]].map(([c,l]) => (
+              <span key={l} className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${c}`}/>{l}</span>
+            ))}
+          </div>
+        </div>
+        <div className="divide-y divide-slate-50">
+          {tp.cols.map(col => {
+            const ac = ANOMALY_CONF[col.anomaly];
+            const expanded = expandedCol === col.col;
+            return (
+              <div key={col.col}>
+                <button
+                  onClick={() => setExpandedCol(expanded ? null : col.col)}
+                  className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors"
+                >
+                  <div className="grid grid-cols-12 gap-3 items-center">
+                    {/* 이상 점 */}
+                    <div className="col-span-1 flex justify-center">
+                      <span className={`w-2.5 h-2.5 rounded-full ${ac.dot}`} />
+                    </div>
+                    {/* 컬럼명 */}
+                    <div className="col-span-2">
+                      <span className="font-mono text-sm font-semibold text-slate-800">{col.col}</span>
+                      <div className="text-xs text-slate-400">{col.type}</div>
+                    </div>
+                    {/* 10M 도메인 */}
+                    <div className="col-span-2">
+                      {col.domain
+                        ? <span className="text-xs font-mono bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">{col.domain}</span>
+                        : <span className="text-xs text-slate-200">—</span>
+                      }
+                    </div>
+                    {/* NULL율 */}
+                    <div className="col-span-2">
+                      <div className="text-xs text-slate-400 mb-0.5">NULL율</div>
+                      <MiniBar pct={col.nullPct} color={col.nullPct > 10 ? "bg-rose-400" : col.nullPct > 3 ? "bg-amber-400" : "bg-emerald-400"} />
+                    </div>
+                    {/* 유일값율 */}
+                    <div className="col-span-2">
+                      <div className="text-xs text-slate-400 mb-0.5">유일값 {col.distinct.toLocaleString()}개</div>
+                      <MiniBar pct={col.distPct > 100 ? 100 : col.distPct} color="bg-blue-300" />
+                    </div>
+                    {/* 이상 뱃지 */}
+                    <div className="col-span-2 flex justify-end">
+                      {col.anomaly !== "none"
+                        ? <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${ac.badge}`}>{ac.label}</span>
+                        : <span className="text-xs text-slate-200">—</span>
+                      }
+                    </div>
+                    {/* 화살표 */}
+                    <div className="col-span-1 flex justify-end">
+                      <ChevronRight className={`w-3.5 h-3.5 text-slate-300 transition-transform ${expanded ? "rotate-90" : ""}`} />
+                    </div>
+                  </div>
+                </button>
+
+                {/* 펼쳐진 상세 */}
+                {expanded && (
+                  <div className="px-4 pb-4 bg-slate-50 border-t border-slate-100">
+                    <div className="grid grid-cols-3 gap-4 pt-3">
+                      {/* 통계 */}
+                      <div className="bg-white rounded-lg border border-slate-200 p-3">
+                        <p className="text-xs font-semibold text-slate-500 mb-2">기본 통계</p>
+                        <div className="space-y-1.5 text-xs">
+                          {[
+                            ["총 건수",  col.total.toLocaleString()],
+                            ["NULL 건수", `${col.nullCnt.toLocaleString()} (${col.nullPct.toFixed(1)}%)`],
+                            ["유일값 수", col.distinct.toLocaleString()],
+                            ["최솟값",   col.min],
+                            ["최댓값",   col.max],
+                            ...(col.avg ? [["평균",col.avg]] : []),
+                          ].map(([k,v]) => (
+                            <div key={k} className="flex justify-between">
+                              <span className="text-slate-400">{k}</span>
+                              <span className="font-mono font-semibold text-slate-700">{v}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      {/* 상위 값 */}
+                      <div className="bg-white rounded-lg border border-slate-200 p-3">
+                        <p className="text-xs font-semibold text-slate-500 mb-2">상위 빈도값 (Top Values)</p>
+                        {col.topValues.length === 0
+                          ? <p className="text-xs text-slate-300">고유값 많음 — 생략</p>
+                          : <div className="space-y-1.5">
+                              {col.topValues.map(tv => (
+                                <div key={tv.val} className="flex items-center gap-2">
+                                  <span className="font-mono text-xs text-slate-700 flex-1 truncate">{tv.val}</span>
+                                  <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                    <div className="h-full bg-blue-400 rounded-full" style={{ width: `${Math.min((tv.cnt / col.total) * 100 * 10, 100)}%` }} />
+                                  </div>
+                                  <span className="text-xs text-slate-400 w-12 text-right">{tv.cnt.toLocaleString()}</span>
+                                </div>
+                              ))}
+                            </div>
+                        }
+                      </div>
+                      {/* 이상 메시지 */}
+                      <div className={`rounded-lg border p-3 ${col.anomaly === "error" ? "bg-rose-50 border-rose-200" : col.anomaly === "warn" ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200"}`}>
+                        <p className="text-xs font-semibold text-slate-600 mb-2">품질 진단</p>
+                        {col.anomalyNote
+                          ? <>
+                              <div className={`flex items-start gap-1.5 text-xs font-medium ${col.anomaly === "error" ? "text-rose-700" : "text-amber-700"}`}>
+                                <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                                {col.anomalyNote}
+                              </div>
+                              <p className="text-xs text-slate-500 mt-2">
+                                {col.anomaly === "error" ? "→ Data Cleaner에서 즉시 처리 필요" : "→ Human Review 또는 Data Cleaner 권고"}
+                              </p>
+                            </>
+                          : <div className="flex items-center gap-1.5 text-xs text-emerald-700"><CheckCircle2 className="w-3.5 h-3.5" />이상 없음</div>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TAB 6 — 파이프라인 모니터
+// ═══════════════════════════════════════════════════════════════
+interface PipelineJob {
+  id: string;
+  name: string;
+  source: string;
+  stage: "RAW" | "STAGING" | "CANONICAL" | "LLM_INDEX";
+  status: "running" | "done" | "error" | "queued" | "skipped";
+  startedAt: string;
+  elapsed: string;
+  inRows: number;
+  outRows: number;
+  dropRows: number;
+  errorMsg?: string;
+}
+
+const PIPELINE_JOBS: PipelineJob[] = [
+  // RAW 적재
+  { id:"j01", name:"더존 ERP → raw_erp_material",    source:"더존 ERP",    stage:"RAW",       status:"done",    startedAt:"14:22:41", elapsed:"0:38",  inRows:8420,    outRows:8420,    dropRows:0   },
+  { id:"j02", name:"더존 ERP → raw_erp_order",       source:"더존 ERP",    stage:"RAW",       status:"done",    startedAt:"14:22:41", elapsed:"0:51",  inRows:12480,   outRows:12480,   dropRows:0   },
+  { id:"j03", name:"더존 ERP → raw_erp_supplier",    source:"더존 ERP",    stage:"RAW",       status:"done",    startedAt:"14:22:42", elapsed:"0:24",  inRows:184,     outRows:184,     dropRows:0   },
+  { id:"j04", name:"MES → raw_mes_work_order",        source:"자체 MES",    stage:"RAW",       status:"done",    startedAt:"14:23:01", elapsed:"2:14",  inRows:48200,   outRows:48200,   dropRows:0   },
+  { id:"j05", name:"MES → raw_mes_machine_log",       source:"자체 MES",    stage:"RAW",       status:"done",    startedAt:"14:23:01", elapsed:"8:42",  inRows:182400,  outRows:182400,  dropRows:0   },
+  { id:"j06", name:"OPC-UA → raw_sensor_timeseries", source:"OPC-UA",      stage:"RAW",       status:"running", startedAt:"14:23:18", elapsed:"진행중", inRows:4820000, outRows:4820000, dropRows:0  },
+  { id:"j07", name:"PDF 파서 → raw_doc_content",     source:"PDF/이미지",  stage:"RAW",       status:"running", startedAt:"14:24:00", elapsed:"진행중", inRows:93,      outRows:74,      dropRows:19  },
+  // STAGING (정제)
+  { id:"j08", name:"raw_erp_material → stg_material",source:"더존 ERP",    stage:"STAGING",   status:"done",    startedAt:"14:23:22", elapsed:"0:18",  inRows:8420,    outRows:8408,    dropRows:12  },
+  { id:"j09", name:"raw_erp_order → stg_order",      source:"더존 ERP",    stage:"STAGING",   status:"done",    startedAt:"14:23:35", elapsed:"0:31",  inRows:12480,   outRows:12480,   dropRows:0   },
+  { id:"j10", name:"raw_mes_machine_log → stg_machine",source:"자체 MES",  stage:"STAGING",   status:"error",   startedAt:"14:26:10", elapsed:"0:08",  inRows:182400,  outRows:0,       dropRows:0,  errorMsg:"spindle_rpm 단위 혼재 (mm vs inch) — 변환 룰 미정의" },
+  { id:"j11", name:"raw_sensor → stg_sensor",        source:"OPC-UA",      stage:"STAGING",   status:"queued",  startedAt:"—",        elapsed:"—",     inRows:0,       outRows:0,       dropRows:0   },
+  // CANONICAL (10M 매핑)
+  { id:"j12", name:"stg_material → canon_material",  source:"10M 매핑",    stage:"CANONICAL", status:"done",    startedAt:"14:23:41", elapsed:"0:22",  inRows:8408,    outRows:8408,    dropRows:0   },
+  { id:"j13", name:"stg_order → canon_order",        source:"10M 매핑",    stage:"CANONICAL", status:"done",    startedAt:"14:24:08", elapsed:"0:44",  inRows:12480,   outRows:12464,   dropRows:16  },
+  { id:"j14", name:"stg_supplier → canon_supplier",  source:"10M 매핑",    stage:"CANONICAL", status:"done",    startedAt:"14:23:10", elapsed:"0:09",  inRows:184,     outRows:184,     dropRows:0   },
+  { id:"j15", name:"stg_machine → canon_machine",    source:"10M 매핑",    stage:"CANONICAL", status:"skipped", startedAt:"—",        elapsed:"—",     inRows:0,       outRows:0,       dropRows:0   },
+  // LLM 인덱싱
+  { id:"j16", name:"canon_material → 임베딩 인덱스", source:"LLM 인덱서",  stage:"LLM_INDEX", status:"done",    startedAt:"14:24:04", elapsed:"1:12",  inRows:8408,    outRows:8408,    dropRows:0   },
+  { id:"j17", name:"canon_order → 임베딩 인덱스",    source:"LLM 인덱서",  stage:"LLM_INDEX", status:"done",    startedAt:"14:24:54", elapsed:"2:18",  inRows:12464,   outRows:12464,   dropRows:0   },
+  { id:"j18", name:"canon_supplier → 임베딩 인덱스", source:"LLM 인덱서",  stage:"LLM_INDEX", status:"done",    startedAt:"14:23:20", elapsed:"0:28",  inRows:184,     outRows:184,     dropRows:0   },
+  { id:"j19", name:"doc_content → 임베딩 인덱스",    source:"LLM 인덱서",  stage:"LLM_INDEX", status:"running", startedAt:"14:28:00", elapsed:"진행중", inRows:74,      outRows:38,      dropRows:0   },
+];
+
+const STAGE_CONF = {
+  RAW:       { label: "RAW 적재",    bg: "bg-slate-100",    text: "text-slate-600",  bar: "bg-slate-500" },
+  STAGING:   { label: "STAGING 정제",bg: "bg-blue-100",     text: "text-blue-700",   bar: "bg-blue-500" },
+  CANONICAL: { label: "CANONICAL",   bg: "bg-violet-100",   text: "text-violet-700", bar: "bg-violet-500" },
+  LLM_INDEX: { label: "LLM 인덱스",  bg: "bg-emerald-100",  text: "text-emerald-700",bar: "bg-emerald-500" },
+};
+const JOB_STATUS_CONF = {
+  running: { label: "실행중",  dot: "bg-blue-400 animate-pulse", text: "text-blue-700",   bg: "bg-blue-50" },
+  done:    { label: "완료",    dot: "bg-emerald-400",            text: "text-emerald-700",bg: "bg-emerald-50" },
+  error:   { label: "오류",    dot: "bg-rose-500",               text: "text-rose-700",   bg: "bg-rose-50" },
+  queued:  { label: "대기",    dot: "bg-slate-300",              text: "text-slate-500",  bg: "bg-slate-50" },
+  skipped: { label: "건너뜀",  dot: "bg-amber-300",              text: "text-amber-700",  bg: "bg-amber-50" },
+};
+
+function PipelineMonitorTab() {
+  const [filterStage, setFilterStage] = useState<string>("ALL");
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 1500);
+    return () => clearInterval(id);
+  }, []);
+
+  const stages = ["ALL", "RAW", "STAGING", "CANONICAL", "LLM_INDEX"] as const;
+  const filtered = filterStage === "ALL" ? PIPELINE_JOBS : PIPELINE_JOBS.filter(j => j.stage === filterStage);
+
+  const totalDone    = PIPELINE_JOBS.filter(j => j.status === "done").length;
+  const totalRunning = PIPELINE_JOBS.filter(j => j.status === "running").length;
+  const totalError   = PIPELINE_JOBS.filter(j => j.status === "error").length;
+  const totalQueued  = PIPELINE_JOBS.filter(j => j.status === "queued" || j.status === "skipped").length;
+  const totalInRows  = PIPELINE_JOBS.reduce((a, j) => a + j.inRows, 0);
+  const totalOutRows = PIPELINE_JOBS.reduce((a, j) => a + j.outRows, 0);
+  const totalDrop    = PIPELINE_JOBS.reduce((a, j) => a + j.dropRows, 0);
+
+  // 실행중 행 수 증분 시뮬레이션
+  const liveRows = 4820000 + tick * 840;
+
+  return (
+    <div className="space-y-4">
+      {/* KPI 바 */}
+      <div className="grid grid-cols-7 gap-3">
+        {[
+          { label: "총 Job",     value: PIPELINE_JOBS.length, color: "text-slate-700" },
+          { label: "완료",       value: totalDone,    color: "text-emerald-600" },
+          { label: "실행중",     value: totalRunning, color: "text-blue-600" },
+          { label: "오류",       value: totalError,   color: "text-rose-600" },
+          { label: "대기/스킵",  value: totalQueued,  color: "text-amber-600" },
+          { label: "총 입력행",  value: (totalInRows + liveRows - 4820000).toLocaleString(), color: "text-slate-700" },
+          { label: "드롭행",     value: totalDrop.toLocaleString(), color: totalDrop > 0 ? "text-amber-600" : "text-emerald-600" },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+            <p className="text-xs text-slate-400">{label}</p>
+            <p className={`text-lg font-bold mt-0.5 ${color}`}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* 단계별 플로우 다이어그램 */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <div className="flex items-center gap-2">
+          {(["RAW","STAGING","CANONICAL","LLM_INDEX"] as const).map((stage, i) => {
+            const jobs = PIPELINE_JOBS.filter(j => j.stage === stage);
+            const done = jobs.filter(j => j.status === "done").length;
+            const err  = jobs.filter(j => j.status === "error").length;
+            const run  = jobs.filter(j => j.status === "running").length;
+            const sc = STAGE_CONF[stage];
+            return (
+              <div key={stage} className="flex items-center flex-1">
+                <div className={`flex-1 rounded-xl p-3 border-2 ${err > 0 ? "border-rose-300 bg-rose-50" : run > 0 ? "border-blue-300 bg-blue-50" : done === jobs.length ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}>
+                  <div className="text-xs font-bold text-slate-600 mb-1">{sc.label}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full transition-all ${err > 0 ? "bg-rose-400" : "bg-emerald-400"}`}
+                        style={{ width: `${(done / jobs.length) * 100}%` }} />
+                    </div>
+                    <span className="text-xs font-semibold text-slate-600">{done}/{jobs.length}</span>
+                  </div>
+                  {err > 0 && <div className="text-xs text-rose-600 mt-1 font-medium">⚠ 오류 {err}건</div>}
+                  {run > 0 && <div className="text-xs text-blue-600 mt-1 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />실행중 {run}건</div>}
+                </div>
+                {i < 3 && <ArrowRight className="w-5 h-5 text-slate-300 mx-1 shrink-0" />}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 스테이지 필터 */}
+      <div className="flex gap-2">
+        {stages.map(s => (
+          <button key={s} onClick={() => setFilterStage(s)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              filterStage === s ? "bg-slate-900 text-white" : "bg-white border border-slate-200 text-slate-500 hover:border-slate-300"
+            }`}>
+            {s === "ALL" ? "전체" : STAGE_CONF[s as keyof typeof STAGE_CONF].label}
+            <span className={`ml-1.5 ${filterStage === s ? "text-slate-400" : "text-slate-300"}`}>
+              {s === "ALL" ? PIPELINE_JOBS.length : PIPELINE_JOBS.filter(j => j.stage === s).length}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Job 목록 */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-200">
+              {["상태","Job 명","스테이지","시작","소요","입력행","출력행","드롭행"].map(h => (
+                <th key={h} className="text-left px-3 py-2.5 font-semibold text-slate-400">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {filtered.map((job, i) => {
+              const sc = JOB_STATUS_CONF[job.status];
+              const stc = STAGE_CONF[job.stage];
+              const inR = job.status === "running" && job.id === "j06" ? liveRows : job.inRows;
+              return (
+                <tr key={job.id} className={`hover:bg-slate-50 transition-colors ${i % 2 === 1 ? "bg-slate-50/30" : ""}`}>
+                  <td className="px-3 py-2.5">
+                    <div className={`flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full w-fit ${sc.bg} ${sc.text}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                      {sc.label}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span className="font-mono text-slate-700">{job.name}</span>
+                    {job.errorMsg && (
+                      <div className="flex items-center gap-1 mt-0.5 text-xs text-rose-600">
+                        <AlertCircle className="w-3 h-3" />{job.errorMsg}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span className={`text-xs px-2 py-0.5 rounded font-semibold ${stc.bg} ${stc.text}`}>{stc.label}</span>
+                  </td>
+                  <td className="px-3 py-2.5 font-mono text-slate-500">{job.startedAt}</td>
+                  <td className="px-3 py-2.5 font-mono text-slate-500">{job.elapsed}</td>
+                  <td className="px-3 py-2.5 font-mono text-slate-700">{inR > 0 ? inR.toLocaleString() : "—"}</td>
+                  <td className="px-3 py-2.5 font-mono text-slate-700">{job.outRows > 0 ? job.outRows.toLocaleString() : "—"}</td>
+                  <td className="px-3 py-2.5">
+                    {job.dropRows > 0
+                      ? <span className="font-mono text-amber-600 font-semibold">{job.dropRows.toLocaleString()}</span>
+                      : <span className="text-slate-200">—</span>
+                    }
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 오류 해결 가이드 */}
+      {PIPELINE_JOBS.some(j => j.status === "error") && (
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4">
+          <h4 className="text-sm font-bold text-rose-800 mb-2 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" /> 오류 해결 가이드
+          </h4>
+          {PIPELINE_JOBS.filter(j => j.status === "error").map(j => (
+            <div key={j.id} className="text-xs text-rose-700 space-y-1">
+              <p className="font-mono font-semibold">{j.name}</p>
+              <p>{j.errorMsg}</p>
+              <p className="text-rose-500">→ Data Cleaner에서 단위 변환 룰을 정의하거나, Schema Mapping에서 컬럼 타입을 재지정하세요.</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
