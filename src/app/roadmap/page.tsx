@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Clock, Circle, ChevronRight, Users, Package, FileText, Wrench, Database, GitBranch, Network, Share2, CheckSquare, Eye, Factory } from "lucide-react";
+import { CheckCircle2, Clock, Circle, ChevronRight, Users, Package, FileText, Wrench, Database, GitBranch, Network, Share2, CheckSquare, Eye, Factory, Plug, Mail, Newspaper, CalendarClock } from "lucide-react";
 
 type ModuleStatus = "done" | "in_progress" | "planned" | "blocked";
 type MvpPhase = 1 | 2 | 3 | 4;
@@ -269,6 +269,82 @@ const modules: Module[] = [
     eta: "2026 Q3",
   },
   {
+    id: 15,
+    name: "API Connector",
+    nameEn: "API Connector",
+    icon: <Plug className="w-4 h-4" />,
+    desc: "외부 ERP·MES REST API 등록, OAuth/API Key 인증, 스키마 자동 탐색, 실시간 동기화",
+    phase: 4,
+    status: "in_progress",
+    progress: 90,
+    companies: [
+      { name: "A업체", done: true },
+      { name: "B업체", done: true },
+      { name: "C업체", done: false },
+      { name: "D업체", done: true },
+    ],
+    inputTypes: ["REST API 엔드포인트", "인증 정보"],
+    outputTypes: ["스키마 필드 목록", "실시간 레코드", "동기화 이력"],
+    eta: "2027 Q1",
+  },
+  {
+    id: 16,
+    name: "Email Parser",
+    nameEn: "Email Parser",
+    icon: <Mail className="w-4 h-4" />,
+    desc: "이메일·카카오톡·Slack 발주 메시지에서 구조화 필드 자동 추출 — 신뢰도 기반 Human Review 연동",
+    phase: 4,
+    status: "in_progress",
+    progress: 90,
+    companies: [
+      { name: "A업체", done: true },
+      { name: "B업체", done: true },
+      { name: "C업체", done: false },
+      { name: "D업체", done: true },
+    ],
+    inputTypes: ["이메일 본문", "카카오톡 메시지", "Slack 알림"],
+    outputTypes: ["구조화 발주 데이터", "신뢰도 점수", "Human Review 큐"],
+    eta: "2027 Q1",
+  },
+  {
+    id: 17,
+    name: "News Monitor",
+    nameEn: "News Monitor",
+    icon: <Newspaper className="w-4 h-4" />,
+    desc: "공급망 관련 뉴스 실시간 수집 — 원자재 가격·물류 리스크·협력사 이슈 탐지",
+    phase: 4,
+    status: "in_progress",
+    progress: 90,
+    companies: [
+      { name: "A업체", done: true },
+      { name: "B업체", done: true },
+      { name: "C업체", done: true },
+      { name: "D업체", done: true },
+    ],
+    inputTypes: ["뉴스 RSS 피드", "키워드 설정"],
+    outputTypes: ["위험 신호 분류", "연관 업체·품목 매핑", "담당자 알림"],
+    eta: "2027 Q1",
+  },
+  {
+    id: 18,
+    name: "APS Planner",
+    nameEn: "APS Planner",
+    icon: <CalendarClock className="w-4 h-4" />,
+    desc: "시나리오별 수요·재고·입고 계획 비교 — 납기 위험 품목 조기 식별 및 긴급 발주 지원",
+    phase: 4,
+    status: "in_progress",
+    progress: 90,
+    companies: [
+      { name: "A업체", done: true },
+      { name: "B업체", done: true },
+      { name: "C업체", done: false },
+      { name: "D업체", done: true },
+    ],
+    inputTypes: ["수주 데이터", "재고 현황", "입고 예정"],
+    outputTypes: ["수급 갭 분석", "납기 위험 목록", "긴급 발주 권고"],
+    eta: "2027 Q1",
+  },
+  {
     id: 14,
     name: "Onboarding Report",
     nameEn: "Onboarding Report",
@@ -381,7 +457,7 @@ export default function Roadmap() {
       </div>
 
       {/* 전체 진행률 */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-5 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm col-span-1">
           <div className="text-xs text-slate-500 mb-2">전체 진행률</div>
           <div className="text-3xl font-bold text-slate-900 mb-2">{overallProgress}%</div>
@@ -392,7 +468,7 @@ export default function Roadmap() {
             <span className="text-slate-400">예정 {modules.length - totalDone - totalInProgress}개</span>
           </div>
         </div>
-        {([1, 2, 3] as MvpPhase[]).map(phase => {
+        {([1, 2, 3, 4] as MvpPhase[]).map(phase => {
           const cfg = mvpConfig[phase];
           const prog = mvpProgress(phase);
           return (
@@ -412,7 +488,7 @@ export default function Roadmap() {
 
       {viewMode === "lane" ? (
         <div className="space-y-8">
-          {([1, 2, 3] as MvpPhase[]).map(phase => {
+          {([1, 2, 3, 4] as MvpPhase[]).map(phase => {
             const cfg = mvpConfig[phase];
             const mods = mvpModules(phase);
             return (

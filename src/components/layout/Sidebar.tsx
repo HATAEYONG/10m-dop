@@ -21,6 +21,10 @@ import {
   Bot,
   FileBarChart2,
   MessageSquareText,
+  Plug,
+  Mail,
+  Newspaper,
+  CalendarClock,
 } from "lucide-react";
 
 const nav = [
@@ -39,6 +43,10 @@ const nav = [
   { href: "/pipeline-runner", icon: Play, label: "Pipeline Runner", sub: "파이프라인 실행" },
   { href: "/agent-monitor", icon: Bot, label: "Agent Monitor", sub: "AI 결정 로그" },
   { href: "/onboarding-report", icon: FileBarChart2, label: "Onboarding Report", sub: "AI-Readiness 리포트" },
+  { href: "/api-connector", icon: Plug, label: "API Connector", sub: "외부 API 연동" },
+  { href: "/email-parser", icon: Mail, label: "Email Parser", sub: "이메일·메신저 파싱" },
+  { href: "/news-monitor", icon: Newspaper, label: "News Monitor", sub: "공급망 위험 탐지" },
+  { href: "/aps-planner", icon: CalendarClock, label: "APS Planner", sub: "수급 계획·납기 관리" },
   { href: "/roadmap", icon: Map, label: "Roadmap", sub: "개발 현황 · 내부용" },
 ];
 
@@ -55,7 +63,7 @@ export default function Sidebar() {
         <p className="text-xs text-slate-400">Data Onboarding Platform</p>
       </div>
 
-      <nav className="flex-1 p-3 space-y-1">
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {nav.map(({ href, icon: Icon, label, sub }) => (
           <Link
             key={href}
@@ -78,11 +86,11 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-slate-700">
-        <div className="text-xs text-slate-500">MVP 3 · Pipeline + Agent + Report</div>
+      <div className="p-4 border-t border-slate-700 shrink-0">
+        <div className="text-xs text-slate-500">MVP 4 · API + Email + News + APS</div>
         <div className="flex gap-1 mt-2 flex-wrap">
-          {["Runner", "Agent", "Report"].map(t => (
-            <span key={t} className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">{t}</span>
+          {["API", "Email", "News", "APS"].map(t => (
+            <span key={t} className="text-xs bg-orange-900 text-orange-300 px-2 py-0.5 rounded-full">{t}</span>
           ))}
         </div>
       </div>
