@@ -171,6 +171,171 @@ const BASE_MAPPINGS: Mapping[] = [
   { id:10, canonical:"SOP",domain:"Method",relation:"documents",confidence:88,status:"pending",desc:"표준작업절차 → Method 도메인",examples:["SOP-WELD-001"],altDomains:["Process"] },
 ];
 
+/* ── 모델링 표준화 데이터 ── */
+const WORD_STANDARDS = [
+  { eng:"CUSTOMER",  kor:"고객사",    abbr:"CUST", rule:"법인명 기준 · ㈜/주식회사 제거",          example:"삼성전자 → CUST_NM" },
+  { eng:"MATERIAL",  kor:"자재",      abbr:"MAT",  rule:"품목코드 앞자리로 자재/제품 구분",         example:"MAT_CD, MAT_NM" },
+  { eng:"PRODUCT",   kor:"제품",      abbr:"PROD", rule:"SPG 코드 앞 3자리 기준 분류",             example:"PROD_CD, PROD_NM" },
+  { eng:"ORDER",     kor:"주문",      abbr:"ORD",  rule:"판매주문/구매주문 접두어로 구분",          example:"SALE_ORD_NO, PUR_ORD_NO" },
+  { eng:"DATE",      kor:"일자",      abbr:"DT",   rule:"YYYYMMDD 또는 ISO 8601 · 접미어 _DT",    example:"ORD_DT, EFF_DT" },
+  { eng:"QUANTITY",  kor:"수량",      abbr:"QTY",  rule:"단위코드(_UOM) 반드시 병기",              example:"QTY, QTY_UOM" },
+  { eng:"AMOUNT",    kor:"금액",      abbr:"AMT",  rule:"통화코드(_CCY) 병기 · 소수점 2자리",      example:"AMT, AMT_CCY" },
+  { eng:"STATUS",    kor:"상태",      abbr:"STS",  rule:"코드표준(CODE_STANDARD) 참조",            example:"ORD_STS, WO_STS" },
+  { eng:"WORK_ORDER",kor:"작업지시",  abbr:"WO",   rule:"WO_NO 형식 · MES 시스템 기준",            example:"WO_NO, WO_START_DT" },
+  { eng:"EQUIPMENT", kor:"설비",      abbr:"EQP",  rule:"D1 Dict 기준 EQP_ID 파싱 규칙 준수",      example:"EQP_ID, EQP_NM" },
+];
+
+const DOMAIN_STANDARDS = [
+  { domain:"TEXT",      type:"VARCHAR(N)",    len:"N=실측+여유",  nullable:false, example:"CUST_NM VARCHAR(200)",     rule:"한글은 N×3 바이트 산정" },
+  { domain:"CODE",      type:"VARCHAR(20)",   len:"고정 20",      nullable:false, example:"STS_CD VARCHAR(20)",       rule:"코드표준 참조 · NULL 불가" },
+  { domain:"AMOUNT",    type:"DECIMAL(18,2)", len:"18자리 소수2", nullable:true,  example:"AMT DECIMAL(18,2)",        rule:"통화 컬럼(_CCY) 병기" },
+  { domain:"QUANTITY",  type:"DECIMAL(18,4)", len:"18자리 소수4", nullable:true,  example:"QTY DECIMAL(18,4)",        rule:"단위 컬럼(_UOM) 병기" },
+  { domain:"DATE",      type:"DATE",          len:"10 (ISO)",     nullable:true,  example:"ORD_DT DATE",              rule:"TIMESTAMP는 DATETIME 사용" },
+  { domain:"DATETIME",  type:"DATETIME",      len:"19 (ISO)",     nullable:true,  example:"CREATED_AT DATETIME",     rule:"UTC 기준 저장 권장" },
+  { domain:"FLAG",      type:"CHAR(1)",       len:"고정 1",       nullable:false, example:"USE_YN CHAR(1)",           rule:"Y/N만 허용 · DEFAULT 'N'" },
+  { domain:"INTEGER_ID",type:"BIGINT",        len:"8 바이트",     nullable:false, example:"CUST_ID BIGINT",           rule:"AUTO_INCREMENT · PK 전용" },
+  { domain:"SERIAL",    type:"VARCHAR(40)",   len:"최대 40",      nullable:false, example:"SN VARCHAR(40)",           rule:"D1 Dict 파싱 규칙 준수" },
+  { domain:"JSON",      type:"JSON / TEXT",   len:"제한없음",     nullable:true,  example:"META_JSON JSON",           rule:"검색 불필요 필드만 JSON" },
+];
+
+const CODE_STANDARDS = [
+  { group:"주문 상태",  code:"ORD_STS", values:[{v:"10",l:"접수"},{v:"20",l:"확인"},{v:"30",l:"생산중"},{v:"40",l:"완료"},{v:"99",l:"취소"}], tables:["TB_ORDER"] },
+  { group:"자재 유형",  code:"MAT_TYPE",values:[{v:"RM",l:"원자재"},{v:"SM",l:"부자재"},{v:"WIP",l:"반제품"},{v:"FG",l:"완제품"}], tables:["TB_MATERIAL"] },
+  { group:"작업지시 상태",code:"WO_STS",values:[{v:"10",l:"발행"},{v:"20",l:"실행중"},{v:"30",l:"완료"},{v:"90",l:"취소"}], tables:["TB_WORKORDER"] },
+  { group:"품질 판정",  code:"QC_RESULT",values:[{v:"OK",l:"합격"},{v:"NG",l:"불합격"},{v:"RW",l:"재작업"},{v:"SC",l:"스크랩"}], tables:["TB_QC_RESULT","TB_CLAIM"] },
+  { group:"사용여부",   code:"USE_YN",  values:[{v:"Y",l:"사용"},{v:"N",l:"미사용"}], tables:["공통 적용"] },
+  { group:"통화코드",   code:"CCY_CD",  values:[{v:"KRW",l:"원화"},{v:"USD",l:"달러"},{v:"EUR",l:"유로"},{v:"CNY",l:"위안"}], tables:["TB_ORDER","TB_COST"] },
+];
+
+type StdTab = "word"|"domain"|"code";
+
+function ModelingStandardView() {
+  const [stdTab, setStdTab] = useState<StdTab>("word");
+  const [search, setSearch] = useState("");
+
+  const filteredWords = WORD_STANDARDS.filter(w=>!search||[w.eng,w.kor,w.abbr].some(s=>s.toLowerCase().includes(search.toLowerCase())));
+  const filteredDomains = DOMAIN_STANDARDS.filter(d=>!search||d.domain.toLowerCase().includes(search.toLowerCase()));
+  const filteredCodes = CODE_STANDARDS.filter(c=>!search||[c.group,c.code].some(s=>s.toLowerCase().includes(search.toLowerCase())));
+
+  return (
+    <div className="space-y-4">
+      {/* 서브탭 + 검색 */}
+      <div className="flex items-center gap-4">
+        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+          {([["word","단어 표준"],["domain","도메인 표준"],["code","코드 표준"]] as const).map(([k,l])=>(
+            <button key={k} onClick={()=>{setStdTab(k);setSearch("");}}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${stdTab===k?"bg-white text-slate-900 shadow-sm":"text-slate-500 hover:text-slate-700"}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+        <div className="relative">
+          <svg className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="검색..."
+            className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-blue-400 bg-white w-44"/>
+        </div>
+      </div>
+
+      {stdTab==="word" && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+            <span className="text-sm font-bold text-slate-900">단어 표준 (Word Standard)</span>
+            <span className="text-xs text-slate-400">— 논리명↔물리명 명명 규칙</span>
+            <span className="ml-auto text-xs text-blue-600 font-semibold">{filteredWords.length}개</span>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-100">
+              <tr>
+                {["영문명","한글명","약어","적용 규칙","예시"].map(h=>(
+                  <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {filteredWords.map(w=>(
+                <tr key={w.eng} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-2.5 font-mono font-bold text-blue-700 text-xs">{w.eng}</td>
+                  <td className="px-4 py-2.5 text-xs text-slate-700 font-medium">{w.kor}</td>
+                  <td className="px-4 py-2.5"><span className="font-mono text-xs bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded">{w.abbr}</span></td>
+                  <td className="px-4 py-2.5 text-xs text-slate-500 max-w-[200px]">{w.rule}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs text-slate-400">{w.example}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {stdTab==="domain" && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+            <span className="text-sm font-bold text-slate-900">도메인 표준 (Domain Standard)</span>
+            <span className="text-xs text-slate-400">— 데이터 타입·길이·NULL 여부 규칙</span>
+            <span className="ml-auto text-xs text-violet-600 font-semibold">{filteredDomains.length}개</span>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-100">
+              <tr>
+                {["도메인명","데이터 타입","길이","NULL","예시","규칙"].map(h=>(
+                  <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {filteredDomains.map(d=>(
+                <tr key={d.domain} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-2.5"><span className="font-mono text-xs font-bold text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">{d.domain}</span></td>
+                  <td className="px-4 py-2.5 font-mono text-xs text-slate-700">{d.type}</td>
+                  <td className="px-4 py-2.5 text-xs text-slate-500">{d.len}</td>
+                  <td className="px-4 py-2.5 text-xs">
+                    <span className={`px-1.5 py-0.5 rounded font-medium ${d.nullable?"bg-slate-100 text-slate-500":"bg-rose-100 text-rose-700"}`}>
+                      {d.nullable?"NULL 가능":"NOT NULL"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 font-mono text-[11px] text-slate-400">{d.example}</td>
+                  <td className="px-4 py-2.5 text-xs text-slate-500 max-w-[180px]">{d.rule}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {stdTab==="code" && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 px-1">
+            <span className="text-sm font-bold text-slate-900">코드 표준 (Code Standard)</span>
+            <span className="text-xs text-slate-400">— 상태·분류 코드값 표준화</span>
+            <span className="ml-auto text-xs text-amber-600 font-semibold">{filteredCodes.length}개 그룹</span>
+          </div>
+          {filteredCodes.map(g=>(
+            <div key={g.code} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
+                <span className="text-sm font-bold text-slate-800">{g.group}</span>
+                <span className="font-mono text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">{g.code}</span>
+                <div className="ml-auto flex gap-1 flex-wrap">
+                  {g.tables.map(t=>(
+                    <span key={t} className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-mono">{t}</span>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 p-3">
+                {g.values.map(v=>(
+                  <div key={v.v} className="flex items-center gap-1.5 bg-slate-50 rounded-lg border border-slate-100 px-3 py-1.5">
+                    <span className="font-mono text-xs font-bold text-slate-700">{v.v}</span>
+                    <span className="text-slate-300 text-xs">→</span>
+                    <span className="text-xs text-slate-600">{v.l}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── 유틸 ────────────────────────────────────────────────────────
 function ConfBar({ v }: { v: number }) {
   const color = v >= 90 ? "bg-emerald-500" : v >= 75 ? "bg-blue-400" : "bg-amber-400";
@@ -291,7 +456,7 @@ function DictPanel({ item, onClose }: { item: DictItem; onClose: () => void }) {
 
 // ─── 메인 페이지 ─────────────────────────────────────────────────
 export default function OntologyMapping() {
-  const [mainTab, setMainTab] = useState<"dict"|"mapping">("dict");
+  const [mainTab, setMainTab] = useState<"dict"|"mapping"|"standard">("dict");
   const [dicts] = useState<DictItem[]>(INIT_DICTS);
   const [selectedDict, setSelectedDict] = useState<string | null>(null);
   const [catFilter, setCatFilter] = useState<DictCategory | "all">("all");
@@ -351,13 +516,16 @@ export default function OntologyMapping() {
 
       {/* 탭 */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-        {([["dict","Dict 관리"],["mapping","온톨로지 매핑"]] as const).map(([key, label]) => (
+        {([["dict","Dict 관리"],["mapping","온톨로지 매핑"],["standard","모델링 표준"]] as const).map(([key, label]) => (
           <button key={key} onClick={() => setMainTab(key)}
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${mainTab===key?"bg-white text-slate-900 shadow-sm":"text-slate-500 hover:text-slate-700"}`}>
             {label}
           </button>
         ))}
       </div>
+
+      {/* ── 모델링 표준화 탭 ── */}
+      {mainTab === "standard" && <ModelingStandardView/>}
 
       {/* ── Dict 관리 탭 ── */}
       {mainTab === "dict" && (

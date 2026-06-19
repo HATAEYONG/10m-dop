@@ -40,6 +40,163 @@ const MOCK_RESULTS: Record<number,{summary:string; details:Record<string,string|
   10: { summary:"Human Review 큐 5건 전송", details:{"큐 전송":5,"자동처리":9}, logs:["[09:05:10] Review 큐 생성","[09:05:11] 5건 전송 완료"] },
 };
 
+/* ── ML 7단계 파이프라인 데이터 ── */
+const ML_STEPS = [
+  { id:1, label:"데이터 수집",   pct:5,  desc:"원천 연결·적재·품질 확인",              pipeSteps:[1,2,3],     color:"#3b82f6" },
+  { id:2, label:"전처리",        pct:10, desc:"정제·결측치·이상치·표준화",             pipeSteps:[4],         color:"#8b5cf6" },
+  { id:3, label:"정형화",        pct:20, desc:"Canonical 스키마 매핑·온톨로지 배치",   pipeSteps:[5,6,7],     color:"#f59e0b" },
+  { id:4, label:"라벨링",        pct:20, desc:"지식 그래프 엔티티·관계 레이블 부여",   pipeSteps:[8],         color:"#ec4899" },
+  { id:5, label:"검증",          pct:25, desc:"품질 점수·이슈 감지·Human Review",      pipeSteps:[9,10],      color:"#ef4444" },
+  { id:6, label:"배포",          pct:20, desc:"AI-Ready 데이터 마트 제공 준비",        pipeSteps:[],          color:"#22c55e" },
+];
+
+const ALGO_RECS = [
+  { name:"Random Forest",  type:"분류",    useCase:"품질 불량 예측",    score:92, pros:"해석 쉬움·과적합 강건",     cons:"대용량 느림",       hyper:["n_estimators","max_depth","min_samples_split"] },
+  { name:"XGBoost",        type:"분류/회귀",useCase:"납기 지연 예측",    score:95, pros:"정확도 높음·결측 처리",     cons:"하이퍼파라미터 많음", hyper:["learning_rate","max_depth","n_estimators","subsample"] },
+  { name:"LSTM",           type:"시계열",  useCase:"설비 이상 예측",    score:88, pros:"시계열 패턴 포착",          cons:"학습 느림·데이터 많이 필요", hyper:["units","dropout","seq_len","batch_size"] },
+  { name:"LightGBM",       type:"분류/회귀",useCase:"수요량 예측",       score:93, pros:"빠름·메모리 효율",          cons:"작은 데이터셋 불안정", hyper:["num_leaves","learning_rate","feature_fraction"] },
+];
+
+function MLPipelineView({ statuses }: { statuses: StepStatus[] }) {
+  const [selAlgo, setSelAlgo] = useState<string|null>(null);
+  const algo = ALGO_RECS.find(a=>a.name===selAlgo)||null;
+
+  function getMLStatus(mlStep: typeof ML_STEPS[0]): "done"|"running"|"pending"|"partial" {
+    if(mlStep.pipeSteps.length===0) return "pending";
+    const ss = mlStep.pipeSteps.map(p=>statuses[p-1]);
+    if(ss.every(s=>s==="done")) return "done";
+    if(ss.some(s=>s==="running")) return "running";
+    if(ss.some(s=>s==="done")) return "partial";
+    return "pending";
+  }
+
+  const doneCount = ML_STEPS.filter(s=>getMLStatus(s)==="done").length;
+
+  return (
+    <div className="space-y-5">
+      {/* AI-Ready 6단계 진행 */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="text-sm font-bold text-slate-900">AI-Ready 데이터 준비 단계</div>
+            <div className="text-xs text-slate-400 mt-0.5">강의 p.276 기반 · 각 단계 소요 비중 표시</div>
+          </div>
+          <div className="text-right">
+            <div className="text-2xl font-bold text-blue-600">{doneCount}/6</div>
+            <div className="text-xs text-slate-400">단계 완료</div>
+          </div>
+        </div>
+
+        {/* 비중 막대 */}
+        <div className="flex rounded-xl overflow-hidden mb-4" style={{height:20}}>
+          {ML_STEPS.map(s=>{
+            const st=getMLStatus(s);
+            const bg=st==="done"?s.color:st==="running"?s.color+"aa":st==="partial"?s.color+"66":"#e2e8f0";
+            return (
+              <div key={s.id} title={`${s.label} ${s.pct}%`} style={{width:`${s.pct}%`,background:bg,transition:"background 0.4s"}}/>
+            );
+          })}
+          {/* 잔여 (배포이후) */}
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          {ML_STEPS.map(s=>{
+            const st=getMLStatus(s);
+            const icon=st==="done"?"✓":st==="running"?"⟳":st==="partial"?"◑":"○";
+            const textCls=st==="done"?"text-emerald-600":st==="running"?"text-blue-600":st==="partial"?"text-amber-600":"text-slate-400";
+            return (
+              <div key={s.id} className={`rounded-xl border p-3 ${st==="done"?"bg-emerald-50 border-emerald-200":st==="running"?"bg-blue-50 border-blue-200 animate-pulse":st==="partial"?"bg-amber-50 border-amber-200":"bg-slate-50 border-slate-200"}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`font-bold text-sm ${textCls}`}>{icon}</span>
+                  <span className="text-xs font-bold text-slate-700">{s.id}. {s.label}</span>
+                  <span className="ml-auto text-[10px] font-bold" style={{color:s.color}}>{s.pct}%</span>
+                </div>
+                <div className="text-[10px] text-slate-500">{s.desc}</div>
+                {s.pipeSteps.length>0&&(
+                  <div className="flex gap-1 mt-1.5 flex-wrap">
+                    {s.pipeSteps.map(p=>(
+                      <span key={p} className={`text-[9px] px-1 py-0.5 rounded font-mono ${statuses[p-1]==="done"?"bg-emerald-100 text-emerald-700":"bg-slate-100 text-slate-500"}`}>
+                        Step{p}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 알고리즘 추천 */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+        <div className="text-sm font-bold text-slate-900 mb-1">ML 알고리즘 추천</div>
+        <div className="text-xs text-slate-400 mb-4">AI-Ready 완료 후 적용 가능한 모델 · 클릭하여 상세</div>
+        <div className="grid grid-cols-2 gap-3">
+          {ALGO_RECS.map(a=>(
+            <div key={a.name} onClick={()=>setSelAlgo(selAlgo===a.name?null:a.name)}
+              className={`rounded-xl border p-4 cursor-pointer transition-all hover:shadow-sm ${selAlgo===a.name?"border-blue-400 ring-2 ring-blue-100":"border-slate-200"}`}>
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <div className="text-sm font-bold text-slate-900">{a.name}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">{a.useCase}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-bold text-indigo-600">{a.score}%</div>
+                  <div className="text-[10px] text-slate-400">예상 정확도</div>
+                </div>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 bg-violet-100 text-violet-700 rounded-full font-medium">{a.type}</span>
+              {selAlgo===a.name&&(
+                <div className="mt-3 pt-3 border-t border-slate-100 space-y-2 text-xs">
+                  <div className="flex gap-2">
+                    <span className="text-emerald-600 font-semibold w-10 shrink-0">장점</span>
+                    <span className="text-slate-600">{a.pros}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-rose-600 font-semibold w-10 shrink-0">단점</span>
+                    <span className="text-slate-600">{a.cons}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-semibold">주요 하이퍼파라미터</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {a.hyper.map(h=>(
+                        <span key={h} className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{h}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 파라미터 vs 하이퍼파라미터 */}
+      <div className="grid grid-cols-2 gap-4">
+        {[
+          { title:"파라미터 (Parameter)", sub:"학습으로 자동 결정", color:"border-blue-200 bg-blue-50", tc:"text-blue-700",
+            items:["가중치 (Weights) — 모델이 데이터로부터 학습","편향 (Bias) — 활성화 함수의 이동값","회귀계수 — 선형 모델의 계수","서포트 벡터 — SVM 경계 결정 포인트"] },
+          { title:"하이퍼파라미터 (Hyperparameter)", sub:"사람이 직접 설정", color:"border-amber-200 bg-amber-50", tc:"text-amber-700",
+            items:["learning_rate — 학습률 (0.001~0.1)","n_estimators — 트리 개수","max_depth — 트리 깊이","dropout — 과적합 방지 비율","batch_size — 미니배치 크기"] },
+        ].map(c=>(
+          <div key={c.title} className={`rounded-xl border-2 ${c.color} p-4`}>
+            <div className={`text-sm font-bold ${c.tc} mb-0.5`}>{c.title}</div>
+            <div className="text-xs text-slate-400 mb-3">{c.sub}</div>
+            <ul className="space-y-1.5">
+              {c.items.map(item=>(
+                <li key={item} className="text-xs text-slate-600 flex items-start gap-2">
+                  <span className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${c.tc.replace("text-","bg-")}`}/>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const HISTORY = [
   { id:1, company:"A업체", date:"2026-06-17 14:22", duration:"18.4초", done:10, errors:0,  score:87, tokens:"14.7k" },
   { id:2, company:"B업체", date:"2026-06-17 10:05", duration:"16.1초", done:9,  errors:1,  score:79, tokens:"12.3k" },
@@ -155,7 +312,7 @@ export default function PipelineRunner() {
   const [results, setResults] = useState<(typeof MOCK_RESULTS[1]|null)[]>(Array(10).fill(null));
   const [running, setRunning] = useState(false);
   const [selected, setSelected] = useState<number|null>(null);
-  const [mainTab, setMainTab] = useState<"runner"|"history">("runner");
+  const [mainTab, setMainTab] = useState<"runner"|"history"|"ml">("runner");
   const [elapsed, setElapsed] = useState(0);
   const [actualDurations, setActualDurations] = useState<number[]>(Array(10).fill(0));
   const abortRef = useRef(false);
@@ -220,13 +377,15 @@ export default function PipelineRunner() {
 
       {/* 탭 */}
       <div className="flex gap-1 border-b border-slate-200">
-        {([["runner","파이프라인 실행"],["history","실행 이력"]] as const).map(([k,l])=>(
+        {([["runner","파이프라인 실행"],["ml","ML 7단계"],["history","실행 이력"]] as const).map(([k,l])=>(
           <button key={k} onClick={()=>setMainTab(k)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${mainTab===k?"border-blue-600 text-blue-700":"border-transparent text-slate-500 hover:text-slate-700"}`}>
             {l}
           </button>
         ))}
       </div>
+
+      {mainTab==="ml"&&<MLPipelineView statuses={statuses}/>}
 
       {mainTab==="runner"&&(
         <>
