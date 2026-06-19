@@ -29,6 +29,11 @@ const OPT_HINTS = [
   { id:3, level:"medium", title:"QTY 단위 불명확", desc:"A업체 ERP QTY 컬럼 — EA vs KG 단위 미확인. OrderLine.quantity 적재 전 단위 코드 검증 필요.", action:"단위 코드 검증 추가" },
   { id:4, level:"medium", title:"AMT 통화 코드 누락", desc:"A업체 ERP AMT — KRW 확인 필요. OrderLine.amount_krw 매핑 시 통화 메타 추가 권장.", action:"통화 메타 컬럼 추가" },
   { id:5, level:"low",    title:"ITEM_CD vs 품번 중복 엔티티", desc:"A업체 ERP ITEM_CD와 Excel BOM 품번이 동일 엔티티일 가능성 있음. 중복 canonical 키 확인 필요.", action:"엔티티 병합 검토" },
+  { id:6, level:"high",   title:"YH itm_id INT ↔ itm_cd VARCHAR 이중 키", desc:"DMA100.itm_id(INT PK)와 DMA100.itm_cd(NVARCHAR)가 동시에 사용됨. COS/CAM/LEB는 itm_id 참조, 외부 시스템은 itm_cd 참조 — Product canonical 키 통일 필요.", action:"Product.product_id 키 통일 설계" },
+  { id:7, level:"high",   title:"PAY emp_no VARCHAR 길이 불일치", desc:"PAY100.emp_no=VARCHAR(20), HRK100.emp_no=VARCHAR(20)이나 PAY300.emp_no=VARCHAR(10) — 동일 키 길이 상이, JOIN 시 절사 위험.", action:"emp_no 길이 표준화 (VARCHAR(20) 통일)" },
+  { id:8, level:"medium", title:"FAT get_dt DATETIME → DATE 변환", desc:"FAT100.get_dt 취득일자가 DATETIME으로 저장되나 시간부 항상 00:00:00 — DATE로 형변환 후 FixedAsset.acquisition_date에 적재 권장.", action:"DATE_TRUNC 변환 적용" },
+  { id:9, level:"medium", title:"DMA itm_bnm 영문명 공백·미입력", desc:"DMA100.itm_bnm 영문품목명 null 비율 28%, 공백 문자만 있는 행 12% — Product.name_en 적재 전 TRIM+NULL 처리 필요.", action:"TRIM + NULLIF 변환 추가" },
+  { id:10,level:"low",    title:"PAZ ty_bc 지급/공제 코드표 미확정", desc:"PAZ300.ty_bc 급여유형코드가 'PAY'/'DED' 외 'ADJ'(조정) 확인됨 — PayCode.type_code Canonical 코드표 확정 필요.", action:"코드표준 ADJ 항목 추가" },
 ];
 
 function StarSchemaView() {
@@ -266,6 +271,42 @@ const BASE_MAPPINGS: Mapping[] = [
   { id:37, source:"YH LEB 출고",     srcCol:"out_no",         srcType:"VARCHAR(20)",   canonical:"Delivery.delivery_id",     confidence:97, status:"approved", note:"LEB100 출고번호 — PK",               sampleValues:["OUT202601001","OUT202601002"], transform:"DIRECT" },
   { id:38, source:"YH LEB 출고",     srcCol:"out_qty",        srcType:"DECIMAL(18,5)", canonical:"Delivery.qty",             confidence:93, status:"approved", note:"출고수량",                           sampleValues:["100.00000","50.00000"], transform:"CAST_DECIMAL" },
   { id:39, source:"YH LEB 출고",     srcCol:"out_amt",        srcType:"DECIMAL(18,5)", canonical:"Delivery.amount_krw",      confidence:91, status:"approved", note:"출고금액 KRW",                       sampleValues:["350000.00000","175000.00000"], transform:"CAST_DECIMAL" },
+  /* ── E업체 YH ERP — FAT 고정자산/세무 ── */
+  { id:40, source:"YH FAT 자산",     srcCol:"mng_no",         srcType:"VARCHAR(50)",   canonical:"FixedAsset.asset_id",       confidence:96, status:"approved", note:"FAT100 자산 관리번호 — PK",            sampleValues:["FA2026-0001","FA2026-0002"], transform:"DIRECT" },
+  { id:41, source:"YH FAT 자산",     srcCol:"mng_nm",         srcType:"NVARCHAR(100)", canonical:"FixedAsset.name",           confidence:94, status:"approved", note:"자산명",                              sampleValues:["CNC 선반 5호기","사무용 PC"], transform:"TRIM" },
+  { id:42, source:"YH FAT 자산",     srcCol:"get_dt",         srcType:"DATETIME",      canonical:"FixedAsset.acquisition_date",confidence:92,status:"approved", note:"취득일자",                            sampleValues:["2023-03-15 00:00:00","2022-07-01 00:00:00"], transform:"DATE_TRUNC" },
+  { id:43, source:"YH FAT 자산",     srcCol:"get_amt",        srcType:"DECIMAL(18,5)", canonical:"FixedAsset.acquisition_amt",confidence:93, status:"approved", note:"취득금액 KRW",                       sampleValues:["45000000.00000","1200000.00000"], transform:"CAST_DECIMAL" },
+  { id:44, source:"YH FAT 자산",     srcCol:"cust_cd",        srcType:"VARCHAR(20)",   canonical:"Customer.customer_id",      confidence:87, status:"pending",  note:"FAT100 거래처코드 — 납품업체 참조",   sampleValues:["V0012","V0045"], transform:"DIRECT" },
+  { id:45, source:"YH FAT 세무",     srcCol:"biz_no",         srcType:"VARCHAR(20)",   canonical:"Customer.biz_no",           confidence:91, status:"approved", note:"FAT300 사업자번호",                   sampleValues:["123-45-67890","987-65-43210"], transform:"DIRECT" },
+  { id:46, source:"YH FAT 세무",     srcCol:"sum_amt",        srcType:"DECIMAL(20,0)", canonical:"TaxDoc.supply_amt",         confidence:93, status:"approved", note:"FAT300 공급가액 합계 KRW",            sampleValues:["50000000","12000000"], transform:"CAST_DECIMAL" },
+  { id:47, source:"YH FAT 세무",     srcCol:"sum_vat",        srcType:"DECIMAL(20,0)", canonical:"TaxDoc.vat_amt",            confidence:93, status:"approved", note:"FAT300 부가세 합계 KRW",              sampleValues:["5000000","1200000"], transform:"CAST_DECIMAL" },
+  /* ── E업체 YH ERP — PAY 급여/연말정산 ── */
+  { id:48, source:"YH PAY 급여",     srcCol:"app_year",       srcType:"CHAR(4)",       canonical:"PayPeriod.fiscal_year",     confidence:91, status:"approved", note:"PAY100 귀속연도 YYYY",                sampleValues:["2025","2026"], transform:"DATE_FORMAT" },
+  { id:49, source:"YH PAY 급여",     srcCol:"emp_no",         srcType:"VARCHAR(20)",   canonical:"Employee.emp_no",           confidence:97, status:"approved", note:"사원번호 — HR 공통 PK",               sampleValues:["E001","E012","E099"], transform:"DIRECT" },
+  { id:50, source:"YH PAY 급여",     srcCol:"pay_amt",        srcType:"DECIMAL(18,0)", canonical:"Payroll.total_pay",         confidence:92, status:"approved", note:"PAY110/PAY300 급여합계 KRW",          sampleValues:["3200000","2800000"], transform:"CAST_DECIMAL" },
+  { id:51, source:"YH PAY 급여",     srcCol:"in_tax",         srcType:"DECIMAL(15,0)", canonical:"Payroll.income_tax",        confidence:90, status:"approved", note:"PAY110 소득세 KRW",                   sampleValues:["85000","42000"], transform:"CAST_DECIMAL" },
+  { id:52, source:"YH PAY 급여",     srcCol:"local_tax",      srcType:"DECIMAL(15,0)", canonical:"Payroll.local_tax",         confidence:90, status:"approved", note:"PAY110 지방소득세 KRW",               sampleValues:["8500","4200"], transform:"CAST_DECIMAL" },
+  { id:53, source:"YH PAY 급여",     srcCol:"medi_amt",       srcType:"DECIMAL(15,0)", canonical:"Payroll.medical_ins",       confidence:89, status:"approved", note:"PAY110 건강보험료 KRW",               sampleValues:["112000","98000"], transform:"CAST_DECIMAL" },
+  { id:54, source:"YH PAY 급여",     srcCol:"pens_amt",       srcType:"DECIMAL(15,0)", canonical:"Payroll.pension",           confidence:89, status:"approved", note:"PAY110 국민연금 KRW",                 sampleValues:["144000","126000"], transform:"CAST_DECIMAL" },
+  /* ── E업체 YH ERP — HRK 인사 ── */
+  { id:55, source:"YH HRK 인사",     srcCol:"emp_no",         srcType:"VARCHAR(20)",   canonical:"Employee.emp_no",           confidence:97, status:"approved", note:"HRK100 사원번호 — PAY emp_no 동일 키", sampleValues:["E001","E012"], transform:"DIRECT" },
+  { id:56, source:"YH HRK 인사",     srcCol:"name",           srcType:"NVARCHAR(50)",  canonical:"Employee.name",             confidence:94, status:"approved", note:"HRK100 부양가족명 (본인 포함)",        sampleValues:["홍길동","김철수"], transform:"TRIM" },
+  { id:57, source:"YH HRK 인사",     srcCol:"bir_dt",         srcType:"DATETIME",      canonical:"Employee.birth_date",       confidence:92, status:"approved", note:"HRK100 생년월일",                     sampleValues:["1985-03-22 00:00:00","1991-11-05 00:00:00"], transform:"DATE_TRUNC" },
+  { id:58, source:"YH HRK 인사",     srcCol:"duty_bc",        srcType:"VARCHAR(10)",   canonical:"Employee.position_code",    confidence:88, status:"pending",  note:"HRK220 직위코드 — 코드표준 매핑 필요", sampleValues:["D01","M03","S05"], transform:"DIRECT" },
+  { id:59, source:"YH HRK 인사",     srcCol:"stat_bc",        srcType:"VARCHAR(10)",   canonical:"Employee.status_code",      confidence:85, status:"pending",  note:"HRK100 재직상태코드 — 재직/휴직/퇴직", sampleValues:["ACT","LOA","RET"], transform:"DIRECT" },
+  /* ── E업체 YH ERP — DMA 품목마스터 ── */
+  { id:60, source:"YH DMA 품목",     srcCol:"itm_id",         srcType:"INT(10)",       canonical:"Product.product_id",        confidence:92, status:"approved", note:"DMA100 품목 INT PK — COS/CAM/LEB itm_id와 동일 엔티티", sampleValues:["1024","3821","5012"], transform:"INT_TO_STR" },
+  { id:61, source:"YH DMA 품목",     srcCol:"itm_cd",         srcType:"NVARCHAR(50)",  canonical:"Product.product_code",      confidence:95, status:"approved", note:"DMA100 품목코드 (human-readable)",     sampleValues:["P-AL6061-01","P-PCB-M02"], transform:"TRIM" },
+  { id:62, source:"YH DMA 품목",     srcCol:"itm_nm",         srcType:"NVARCHAR(100)", canonical:"Product.name",              confidence:95, status:"approved", note:"DMA100 품목명",                       sampleValues:["AL6061 판재 3T","PCB 메인보드"], transform:"TRIM" },
+  { id:63, source:"YH DMA 품목",     srcCol:"itm_bnm",        srcType:"NVARCHAR(100)", canonical:"Product.name_en",           confidence:82, status:"pending",  note:"DMA100 영문 품목명 — 공백 다수 존재",  sampleValues:["AL6061 Plate 3T","PCB Mainboard"], transform:"TRIM" },
+  { id:64, source:"YH DMA 품목",     srcCol:"spec",           srcType:"NVARCHAR(100)", canonical:"Product.spec",              confidence:88, status:"approved", note:"DMA100 규격",                         sampleValues:["3T×200×500","FR4 1.6T"], transform:"TRIM" },
+  { id:65, source:"YH DMA 품목",     srcCol:"um_bc",          srcType:"VARCHAR(10)",   canonical:"Product.unit_code",         confidence:91, status:"approved", note:"DMA100 단위코드 (업무코드)",           sampleValues:["EA","KG","M"], transform:"DIRECT" },
+  { id:66, source:"YH DMA 품목",     srcCol:"grp1_cd",        srcType:"NVARCHAR(20)",  canonical:"Product.category1",         confidence:87, status:"pending",  note:"DMA100 품목 대분류",                  sampleValues:["원자재","반제품","완제품"], transform:"DIRECT" },
+  { id:67, source:"YH DMA 품목",     srcCol:"grp2_cd",        srcType:"NVARCHAR(20)",  canonical:"Product.category2",         confidence:83, status:"pending",  note:"DMA100 품목 중분류",                  sampleValues:["알루미늄","PCB","포장재"], transform:"DIRECT" },
+  /* ── E업체 YH ERP — PAZ 급여기준 ── */
+  { id:68, source:"YH PAZ 기준",     srcCol:"pay_cd",         srcType:"VARCHAR(10)",   canonical:"PayCode.pay_cd",            confidence:95, status:"approved", note:"PAZ300 급여코드 — PK",               sampleValues:["P001","P010","D001"], transform:"DIRECT" },
+  { id:69, source:"YH PAZ 기준",     srcCol:"pay_nm",         srcType:"NVARCHAR(50)",  canonical:"PayCode.name",              confidence:93, status:"approved", note:"PAZ300 급여항목명",                   sampleValues:["기본급","직책수당","식대"], transform:"TRIM" },
+  { id:70, source:"YH PAZ 기준",     srcCol:"ty_bc",          srcType:"VARCHAR(10)",   canonical:"PayCode.type_code",         confidence:88, status:"pending",  note:"PAZ300 급여유형코드 (지급/공제)",      sampleValues:["PAY","DED"], transform:"DIRECT" },
 ];
 
 const TRANSFORM_LABELS: Record<string,{label:string;color:string}> = {
@@ -297,12 +338,15 @@ const MAPPING_FEED = [
   "B업체 SAP — MATNR 선행0 제거 변환 적용",
   "C업체 Excel — 거래처 Entity Resolution 진행 중",
   "D업체 Odoo — partner_id INT→STR 변환 완료",
-  "E업체 YH QMM — iqc_no·ok_qty·bad_qty 21개 컬럼 적재 완료",
-  "E업체 YH COS — itm_cd·end_up 원가 매핑 승인",
-  "E업체 YH LEB — out_no 출고 Delivery 매핑 완료",
-  "스키마 검증 — 533개 컬럼 중 498개 매핑 완료",
-  "Human Review — 미매핑 35건 큐 등록 (YH itm_id INT 조인 포함)",
-  "자동 승인 — 신뢰도 90%+ 컬럼 14건 일괄 처리",
+  "E업체 YH QMM — iqc_no·ok_qty·bad_qty 적재 완료",
+  "E업체 YH FAT — mng_no·get_amt·biz_no 자산/세무 매핑 승인",
+  "E업체 YH PAY — emp_no·pay_amt·in_tax 급여 7개 컬럼 완료",
+  "E업체 YH HRK — emp_no·name·bir_dt 인사 매핑 승인",
+  "E업체 YH DMA — itm_id·itm_cd·grp1_cd 품목마스터 8개 완료",
+  "E업체 YH PAZ — pay_cd·pay_nm 급여기준 매핑 완료",
+  "스키마 검증 — YH ERP 52개 컬럼 포함 총 783개 중 731개 매핑",
+  "Human Review — 미매핑 52건 큐 등록 (itm_id INT 조인·emp_no 길이 불일치 포함)",
+  "자동 승인 — 신뢰도 90%+ 컬럼 31건 일괄 처리",
 ];
 
 function SparkLine({ vals }: { vals: number[] }) {
