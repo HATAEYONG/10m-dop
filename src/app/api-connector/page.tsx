@@ -429,6 +429,14 @@ export default function ApiConnector() {
                 </div>
               </div>
 
+              {/* 응답 시간 추세 */}
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <div className="text-xs font-semibold text-slate-500 mb-2">응답 시간 추세 (ms)</div>
+                <svg viewBox="0 0 320 48" className="w-full">
+                  {(()=>{const vs=[220,185,240,195,180,210,175,190,168,185]; const max=Math.max(...vs); const min=Math.min(...vs); const W=320; const H=40; const pts=vs.map((v,i)=>({x:i*(W/(vs.length-1)),y:H-((v-min)/(max-min||1))*H})); const d=pts.map((p,i)=>(i===0?"M":"L")+p.x.toFixed(1)+","+p.y.toFixed(1)).join(" "); return (<><path d={d} fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round"/>{pts.map((p,i)=>i===pts.length-1?<circle key={i} cx={p.x} cy={p.y} r={3} fill="#3b82f6"/>:null)}{vs.map((v,i)=>{const p=pts[i]; return i%3===0?<text key={i} x={p.x} y={46} textAnchor="middle" fontSize="7" fill="#94a3b8">{v}</text>:null;})}</>);})()}
+                </svg>
+              </div>
+
               {/* 스케줄 설정 */}
               <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
                 <h4 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">

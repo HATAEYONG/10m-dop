@@ -1,7 +1,90 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Clock, Circle, ChevronRight, Users, Package, FileText, Wrench, Database, GitBranch, Network, Share2, CheckSquare, Eye, Factory, Plug, Mail, Newspaper, CalendarClock, RadioTower } from "lucide-react";
+import { CheckCircle2, Clock, Circle, ChevronRight, Users, Package, FileText, Wrench, Database, GitBranch, Network, Share2, CheckSquare, Eye, Factory, Plug, Mail, Newspaper, CalendarClock, RadioTower, X } from "lucide-react";
+
+function ModulePanel({ mod, onClose }: { mod: Module; onClose: ()=>void }) {
+  const [tab, setTab] = useState<"detail"|"companies"|"io">("detail");
+  const sc = statusConfig[mod.status];
+  const cfg = mvpConfig[mod.phase];
+  return (
+    <div className="fixed inset-y-0 right-0 w-[440px] bg-white shadow-2xl border-l border-slate-200 flex flex-col z-50">
+      <div className="px-5 py-4 border-b border-slate-200 flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cfg.badge}`}>{cfg.label}</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${sc.color}`}>{sc.label}</span>
+          </div>
+          <h2 className="text-base font-bold text-slate-900">{mod.name}</h2>
+          <p className="text-xs text-slate-400 mt-0.5">{mod.nameEn}</p>
+        </div>
+        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><X className="w-4 h-4"/></button>
+      </div>
+      <div className="flex border-b border-slate-100">
+        {(["detail","companies","io"] as const).map(t=>(
+          <button key={t} onClick={()=>setTab(t)}
+            className={"flex-1 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors "+(tab===t?"border-blue-600 text-blue-700":"border-transparent text-slate-500 hover:text-slate-700")}>
+            {t==="detail"?"모듈 상세":t==="companies"?"업체 현황":"입출력"}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {tab==="detail"&&(
+          <>
+            <div className="bg-slate-50 rounded-xl p-4">
+              <p className="text-xs text-slate-600 leading-relaxed">{mod.desc}</p>
+            </div>
+            <div className="space-y-2 text-xs">
+              {[["ETA",mod.eta||"미정"],["진행률",mod.progress+"%"],["MVP 단계","Phase "+mod.phase]].map(([k,v])=>(
+                <div key={k} className="flex justify-between bg-white border border-slate-100 rounded-lg px-3 py-2">
+                  <span className="text-slate-400">{k}</span><span className="font-semibold text-slate-700">{v}</span>
+                </div>
+              ))}
+            </div>
+            <div>
+              <div className="flex justify-between text-xs mb-1"><span className="text-slate-500">진행률</span><span className="font-bold text-slate-700">{mod.progress}%</span></div>
+              <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className={"h-full rounded-full "+cfg.bar} style={{width:mod.progress+"%"}}/></div>
+            </div>
+          </>
+        )}
+        {tab==="companies"&&(
+          <div className="space-y-2">
+            {mod.companies.map(co=>(
+              <div key={co.name} className={"flex items-center justify-between p-3 rounded-xl border "+(co.done?"border-emerald-200 bg-emerald-50/30":"border-slate-200")}>
+                <span className="text-xs font-medium text-slate-700">{co.name}</span>
+                {co.done
+                  ?<span className="text-xs text-emerald-600 font-semibold flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5"/>완료</span>
+                  :<span className="text-xs text-slate-400">미완료</span>}
+              </div>
+            ))}
+          </div>
+        )}
+        {tab==="io"&&(
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-2">입력 데이터</p>
+              {mod.inputTypes.map((t,i)=>(
+                <div key={i} className="flex items-center gap-2 text-xs py-1.5 border-b border-slate-50">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400"/>
+                  <span className="text-slate-600">{t}</span>
+                </div>
+              ))}
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-2">출력 데이터</p>
+              {mod.outputTypes.map((t,i)=>(
+                <div key={i} className="flex items-center gap-2 text-xs py-1.5 border-b border-slate-50">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"/>
+                  <span className="text-slate-600">{t}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 type ModuleStatus = "done" | "in_progress" | "planned" | "blocked";
 type MvpPhase = 1 | 2 | 3 | 4 | 5;
@@ -773,6 +856,33 @@ export default function Roadmap() {
           <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-full bg-slate-600 inline-block" />예정</span>
         </div>
       </div>
+
+      {/* MVP 단계별 진행률 SVG */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <div className="text-xs font-semibold text-slate-500 mb-3">MVP 단계별 진행률</div>
+        <svg viewBox="0 0 500 60" className="w-full">
+          {([1,2,3,4,5] as MvpPhase[]).map((phase,i)=>{
+            const prog=mvpProgress(phase); const cfg=mvpConfig[phase];
+            const clrs=["#3b82f6","#8b5cf6","#10b981","#f97316","#a855f7"];
+            const x=i*102+10; const bh=(prog/100)*50;
+            return (
+              <g key={phase}>
+                <rect x={x} y={0} width={88} height={50} rx={4} fill="#f8fafc"/>
+                <rect x={x} y={50-bh} width={88} height={bh} rx={4} fill={clrs[i]} opacity={0.85}/>
+                <text x={x+44} y={30} textAnchor="middle" fontSize="8.5" fill="#64748b" fontWeight="600">{cfg.label}</text>
+                <text x={x+44} y={46} textAnchor="middle" fontSize="8" fill={clrs[i]} fontWeight="700">{prog}%</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {selModule&&(
+        <>
+          <div className="fixed inset-0 bg-black/20 z-40" onClick={()=>setSelected(null)}/>
+          <ModulePanel mod={selModule} onClose={()=>setSelected(null)}/>
+        </>
+      )}
     </div>
   );
 }

@@ -455,21 +455,38 @@ export default function DataCleaner() {
         </div>
       )}
 
-      {/* 실시간 피드 */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-          <Zap className="w-3.5 h-3.5 text-blue-500"/>
-          <span className="text-xs font-semibold text-slate-700">실시간 정제 이벤트</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse ml-auto"/>
+      {/* 실시간 피드 + 정제율 차트 */}
+      <div className="flex gap-4">
+        <div className="flex-1 bg-slate-900 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 flex items-center gap-2">
+            <Zap className="w-3.5 h-3.5 text-amber-400"/>
+            <span className="text-xs text-slate-300 font-medium">실시간 정제 이벤트</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse ml-auto"/>
+          </div>
+          <div className="divide-y divide-slate-800 max-h-36 overflow-y-auto">
+            {feed.length===0&&<div className="px-4 py-2 text-xs text-slate-500">이벤트 대기 중...</div>}
+            {feed.map((f,i)=>(
+              <div key={i} className="px-4 py-2">
+                <div className="text-[10px] text-slate-500 font-mono">{f.ts}</div>
+                <div className="text-xs text-slate-300 mt-0.5">{f.msg}</div>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="divide-y divide-slate-50 max-h-48 overflow-y-auto">
-          {feed.length===0&&<div className="px-4 py-3 text-xs text-slate-400">이벤트 대기 중...</div>}
-          {feed.map((f,i)=>(
-            <div key={i} className="px-4 py-2.5 flex items-center gap-3 text-xs">
-              <span className="text-slate-400 font-mono shrink-0">{f.ts}</span>
-              <span className="text-slate-700">{f.msg}</span>
-            </div>
-          ))}
+        <div className="w-56 bg-white rounded-xl border border-slate-200 p-4 shrink-0">
+          <div className="text-xs font-semibold text-slate-500 mb-3">규칙 유형별 처리 건수</div>
+          <svg viewBox="0 0 180 80" className="w-full">
+            {[{l:"날짜",v:1243,c:"#3b82f6"},{l:"단위",v:892,c:"#8b5cf6"},{l:"중복",v:547,c:"#f59e0b"},{l:"코드",v:341,c:"#10b981"}].map((d,i)=>{
+              const max=1243; const bh=(d.v/max)*60; const x=i*46+8;
+              return (
+                <g key={d.l}>
+                  <rect x={x} y={70-bh} width={32} height={bh} rx={4} fill={d.c} opacity={0.8}/>
+                  <text x={x+16} y={76} textAnchor="middle" fontSize="7" fill="#94a3b8">{d.l}</text>
+                  <text x={x+16} y={70-bh-3} textAnchor="middle" fontSize="7" fill={d.c} fontWeight="bold">{(d.v/1000).toFixed(1)}k</text>
+                </g>
+              );
+            })}
+          </svg>
         </div>
       </div>
 

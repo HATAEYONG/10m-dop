@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Check, X, Search, ChevronRight, ChevronDown, ArrowRight, FileText, Shuffle } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Check, X, Search, ChevronRight, ChevronDown, ArrowRight, FileText, Shuffle, Zap, Clock } from "lucide-react";
 
 type MappingStatus = "approved" | "pending" | "rejected";
 
@@ -56,8 +56,31 @@ function ConfBar({ v }: { v: number }) {
   );
 }
 
+const MAPPING_FEED = [
+  "A업체 ERP — CUST_CD 신뢰도 96% 자동 승인",
+  "B업체 SAP — MATNR 선행0 제거 변환 적용",
+  "C업체 Excel — 거래처 Entity Resolution 진행 중",
+  "D업체 Odoo — partner_id INT→STR 변환 완료",
+  "스키마 검증 — 312개 컬럼 중 287개 매핑 완료",
+  "Human Review — 미매핑 25건 큐 등록",
+  "자동 승인 — 신뢰도 90%+ 컬럼 7건 일괄 처리",
+];
+
+function SparkLine({ vals }: { vals: number[] }) {
+  const max = Math.max(...vals); const min = Math.min(...vals);
+  const W = 80; const H = 24;
+  const pts = vals.map((v,i)=>({x:i*(W/(vals.length-1)), y:H-(((v-min)/(max-min||1))*H)}));
+  const d = pts.map((p,i)=>(i===0?"M":"L")+p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ");
+  return (
+    <svg width={W} height={H} viewBox={"0 0 "+W+" "+H}>
+      <path d={d} fill="none" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round"/>
+      {pts.map((p,i)=>i===pts.length-1&&<circle key={i} cx={p.x} cy={p.y} r={2.5} fill="#6366f1"/>)}
+    </svg>
+  );
+}
+
 function DetailPanel({ item, onClose }: { item: Mapping; onClose: () => void }) {
-  const [tab, setTab] = useState<"transform"|"sample">("transform");
+  const [tab, setTab] = useState<"transform"|"sample"|"history">("transform");
   const tf = TRANSFORM_LABELS[item.transform] ?? { label: item.transform, color: "bg-slate-100 text-slate-600" };
 
   return (
@@ -73,11 +96,12 @@ function DetailPanel({ item, onClose }: { item: Mapping; onClose: () => void }) 
       </div>
 
       <div className="flex border-b border-slate-200 px-4">
-        {([["transform","변환 규칙"],["sample","샘플 데이터"]] as const).map(([key,label])=>(
-          <button key={key} onClick={()=>setTab(key)}
+        {([["transform","변환 규칙"],["sample","샘플 데이터"],["history","매핑 이력"]] as const).map(([key,label])=>(
+          <button key={key} onClick={()=>setTab(key as "transform"|"sample"|"history")}
             className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors ${tab===key?"border-blue-600 text-blue-600":"border-transparent text-slate-500"}`}>
             {key==="transform"&&<Shuffle className="w-3.5 h-3.5"/>}
             {key==="sample"&&<FileText className="w-3.5 h-3.5"/>}
+            {key==="history"&&<Clock className="w-3.5 h-3.5"/>}
             {label}
           </button>
         ))}
@@ -131,6 +155,27 @@ function DetailPanel({ item, onClose }: { item: Mapping; onClose: () => void }) 
             ))}
           </div>
         )}
+        {tab==="history" && (
+          <div className="space-y-3">
+            <div className="text-xs font-semibold text-slate-500 mb-2">매핑 이력</div>
+            {[
+              {date:"2026-06-18 08:03",actor:"AI 자동",action:"초안 매핑 생성",conf:item.confidence},
+              {date:"2026-06-18 09:15",actor:"관리자",action:item.status==="approved"?"승인 완료":item.status==="rejected"?"거절 처리":"검토 대기"},
+            ].map((h,i)=>(
+              <div key={i} className="flex gap-3 text-xs">
+                <div className="flex flex-col items-center">
+                  <div className="w-2 h-2 rounded-full bg-blue-400 shrink-0"/>
+                  {i===0&&<div className="w-0.5 flex-1 bg-slate-200 mt-1"/>}
+                </div>
+                <div className="pb-2">
+                  <span className="text-slate-400 font-mono">{h.date}</span>
+                  <p className="text-slate-700 font-medium mt-0.5">{h.action}</p>
+                  <p className="text-slate-400">{h.actor} {h.conf?"· 신뢰도 "+h.conf+"%":""}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -144,6 +189,22 @@ export default function SchemaMapping() {
   const [selected, setSelected] = useState<number|null>(null);
   const [editingNote, setEditingNote] = useState<number|null>(null);
   const [noteVal, setNoteVal] = useState("");
+  const [feed, setFeed] = useState<{msg:string;ts:string}[]>([]);
+  const [confTick, setConfTick] = useState(0);
+  const tickRef = useRef(0);
+
+  useEffect(()=>{
+    const id = setInterval(()=>{
+      tickRef.current++;
+      setConfTick(p=>p+(Math.random()>0.6?1:-1));
+      if(tickRef.current%2===0){
+        const msg = MAPPING_FEED[Math.floor(Math.random()*MAPPING_FEED.length)];
+        const ts = new Date().toLocaleTimeString("ko-KR",{hour12:false});
+        setFeed(prev=>[{msg,ts},...prev].slice(0,6));
+      }
+    },1200);
+    return ()=>clearInterval(id);
+  },[]);
 
   const approve = (id: number) => setItems(prev=>prev.map(m=>m.id===id?{...m,status:"approved" as MappingStatus}:m));
   const reject  = (id: number) => setItems(prev=>prev.map(m=>m.id===id?{...m,status:"rejected" as MappingStatus}:m));
@@ -308,6 +369,32 @@ export default function SchemaMapping() {
             </div>
           );
         })}
+      </div>
+
+      {/* 실시간 피드 + 신뢰도 추세 */}
+      <div className="flex gap-4">
+        <div className="flex-1 bg-slate-900 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 flex items-center gap-2">
+            <Zap className="w-3.5 h-3.5 text-amber-400"/>
+            <span className="text-xs text-slate-300 font-medium">매핑 이벤트 피드</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse ml-auto"/>
+          </div>
+          <div className="divide-y divide-slate-800 max-h-36 overflow-y-auto">
+            {feed.length===0&&<div className="px-4 py-2 text-xs text-slate-500">대기 중...</div>}
+            {feed.map((f,i)=>(
+              <div key={i} className="px-4 py-2">
+                <div className="text-[10px] text-slate-500 font-mono">{f.ts}</div>
+                <div className="text-xs text-slate-300 mt-0.5">{f.msg}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="w-56 bg-white rounded-xl border border-slate-200 p-4">
+          <div className="text-xs font-semibold text-slate-500 mb-3">신뢰도 추세</div>
+          <SparkLine vals={[82,85,84,87,88,86,89,88+confTick%5]}/>
+          <div className="text-xl font-bold text-indigo-600 mt-2">{avgConf}%</div>
+          <div className="text-xs text-slate-400">전체 평균 신뢰도</div>
+        </div>
       </div>
 
       {/* 상세 패널 */}

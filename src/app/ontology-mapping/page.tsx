@@ -330,6 +330,19 @@ export default function OntologyMapping() {
           })}
         </div>
         <p className="text-xs text-slate-500 mt-2">파란색: 완료 · 밝은색: 진행 중 · 어두운색: 미사용</p>
+        <svg viewBox="0 0 600 48" className="w-full mt-3">
+          {domainStats.map((d,i)=>{
+            const pct=d.approved/d.total; const bw=pct*48; const x=i*62+4;
+            return (
+              <g key={d.domain}>
+                <rect x={x} y={0} width={56} height={48} rx={4} fill="#1e293b"/>
+                <rect x={x} y={48-bw} width={56} height={bw} rx={4} fill="#3b82f6" opacity={0.9}/>
+                <text x={x+28} y={24} textAnchor="middle" fontSize="7.5" fill="#94a3b8" dominantBaseline="middle">{d.domain.slice(0,5)}</text>
+                <text x={x+28} y={42} textAnchor="middle" fontSize="7" fill="#60a5fa">{Math.round(pct*100)}%</text>
+              </g>
+            );
+          })}
+        </svg>
       </div>
 
       {/* 필터 */}

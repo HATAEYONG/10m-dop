@@ -587,6 +587,22 @@ export default function EmailParser() {
           </div>
         )}
       </div>
+
+      {/* 실시간 수신 피드 */}
+      <div className="bg-slate-900 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 flex items-center gap-2">
+          <span className="text-xs text-slate-300 font-medium">실시간 메시지 수신 피드</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse ml-auto"/>
+        </div>
+        <div className="grid grid-cols-3 gap-px bg-slate-800 divide-x divide-slate-800">
+          {[{label:"총 수신",val:emails.length+"건",cls:"text-white"},{label:"파싱 성공률",val:parseRate+"%",cls:"text-emerald-400"},{label:"저신뢰 필드",val:emails.reduce((s,e)=>s+e.fields.filter(f=>f.confidence<70).length,0)+"건",cls:"text-amber-400"}].map(d=>(
+            <div key={d.label} className="bg-slate-900 px-4 py-3 text-center">
+              <div className={"text-xl font-bold "+d.cls}>{d.val}</div>
+              <div className="text-xs text-slate-500 mt-0.5">{d.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

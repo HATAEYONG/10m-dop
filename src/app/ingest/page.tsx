@@ -299,6 +299,27 @@ export default function IngestPage() {
         ))}
       </div>
 
+      {/* 적재 현황 SparkLine SVG */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <div className="text-xs font-semibold text-slate-500 mb-3">소스별 적재 레코드 현황</div>
+        <svg viewBox="0 0 560 56" className="w-full">
+          {[
+            {l:"ERP DB",v:182441,c:"#3b82f6"},{l:"MES",v:24800,c:"#8b5cf6"},
+            {l:"센서",v:totalEvents,c:"#10b981"},{l:"PDF",v:12300,c:"#f59e0b"},
+            {l:"이메일",v:3200,c:"#f97316"},{l:"API",v:8900,c:"#ec4899"},
+          ].map((d,i)=>{
+            const max=182441; const bh=Math.max((d.v/max)*48,4); const x=i*94+8;
+            return (
+              <g key={d.l}>
+                <rect x={x} y={48-bh} width={78} height={bh} rx={4} fill={d.c} opacity={0.85}/>
+                <text x={x+39} y={54} textAnchor="middle" fontSize="8" fill="#94a3b8">{d.l}</text>
+                <text x={x+39} y={48-bh-4} textAnchor="middle" fontSize="7.5" fill={d.c} fontWeight="700">{d.v>=1000?(d.v/1000).toFixed(0)+"k":d.v}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
       {/* ── 탭 ── */}
       <div className="flex gap-2 border-b border-slate-200">
         {[

@@ -404,6 +404,25 @@ export default function DocumentParser() {
         ))}
       </div>
 
+      {/* 파이프라인 단계 SVG */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <div className="text-xs font-semibold text-slate-500 mb-3">파싱 파이프라인 단계별 처리량</div>
+        <svg viewBox="0 0 600 56" className="w-full">
+          {[{l:"Pre-proc",v:docs.length},{l:"OCR",v:Math.round(docs.length*0.95)},{l:"Layout",v:Math.round(docs.length*0.9)},{l:"NER",v:Math.round(docs.length*0.88)},{l:"Embed",v:done}].map((d,i)=>{
+            const x=i*122+10; const bh=(d.v/docs.length)*40;
+            const clr=["#3b82f6","#8b5cf6","#f59e0b","#10b981","#f97316"][i];
+            return (
+              <g key={d.l}>
+                {i<4&&<line x1={x+90} y1={20} x2={x+122} y2={20} stroke="#e2e8f0" strokeWidth="1.5" strokeDasharray="4,2"/>}
+                <rect x={x} y={40-bh} width={80} height={bh} rx={4} fill={clr} opacity={0.85}/>
+                <text x={x+40} y={50} textAnchor="middle" fontSize="8" fill="#94a3b8">{d.l}</text>
+                <text x={x+40} y={40-bh-4} textAnchor="middle" fontSize="8" fill={clr} fontWeight="700">{d.v}건</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
       <div className="flex gap-4">
         {/* 좌측 */}
         <div className="w-72 shrink-0 space-y-3">
