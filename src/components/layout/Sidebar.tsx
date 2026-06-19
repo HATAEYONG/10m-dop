@@ -77,7 +77,7 @@ export default function Sidebar() {
       <div className="p-5 border-b border-slate-700">
         <div className="flex items-center gap-2 mb-1">
           <Building2 className="w-6 h-6 text-blue-400" />
-          <span className="font-bold text-lg tracking-tight">10M DOP</span>
+          <span className="font-bold text-lg tracking-tight">DeepSeeHub</span>
         </div>
         <p className="text-xs text-slate-400">AX 전환 데이터 표준화 플랫폼</p>
       </div>
