@@ -1,7 +1,217 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Check, X, Search, ChevronRight, ChevronDown, ArrowRight, FileText, Shuffle, Zap, Clock } from "lucide-react";
+import { Check, X, Search, ChevronRight, ChevronDown, ArrowRight, FileText, Shuffle, Zap, Clock, Database, GitBranch as DWIcon, Lightbulb } from "lucide-react";
+
+/* ── Star Schema 데이터 ── */
+interface DWTable { id:string; label:string; type:"fact"|"dim"; keys:string[]; measures?:string[]; x:number; y:number; color:string; stroke:string }
+
+const DW_TABLES: DWTable[] = [
+  { id:"fact", label:"FACT_ORDER",   type:"fact", keys:["date_key","customer_key","product_key","plant_key","material_key"], measures:["quantity","amount_krw","unit_cost"], x:270, y:155, color:"#eff6ff", stroke:"#2563eb" },
+  { id:"d_date",     label:"DIM_DATE",     type:"dim",  keys:["date_key","year","quarter","month","day"],           x:50,  y:10,  color:"#f0fdf4", stroke:"#16a34a" },
+  { id:"d_customer", label:"DIM_CUSTOMER", type:"dim",  keys:["customer_key","customer_id","name","region"],       x:530, y:10,  color:"#f0fdf4", stroke:"#16a34a" },
+  { id:"d_product",  label:"DIM_PRODUCT",  type:"dim",  keys:["product_key","product_id","name","series"],         x:530, y:250, color:"#f0fdf4", stroke:"#16a34a" },
+  { id:"d_plant",    label:"DIM_PLANT",    type:"dim",  keys:["plant_key","plant_id","plant_name"],                x:50,  y:250, color:"#f0fdf4", stroke:"#16a34a" },
+  { id:"d_material", label:"DIM_MATERIAL", type:"dim",  keys:["material_key","material_id","name","type"],         x:270, y:370, color:"#f0fdf4", stroke:"#16a34a" },
+];
+
+const DW_EDGES = [
+  { from:"fact", to:"d_date",     label:"date_key" },
+  { from:"fact", to:"d_customer", label:"customer_key" },
+  { from:"fact", to:"d_product",  label:"product_key" },
+  { from:"fact", to:"d_plant",    label:"plant_key" },
+  { from:"fact", to:"d_material", label:"material_key" },
+];
+
+const OPT_HINTS = [
+  { id:1, level:"high",   title:"CUST_NM 표기 불일치", desc:"C업체 수기 Excel 거래처 컬럼 — Entity Resolution 선행 후 매핑 권장. 현재 신뢰도 61%.", action:"Entity Resolution 연동" },
+  { id:2, level:"high",   title:"납기일 다형 날짜 파싱", desc:"C업체 수기 Excel 납기일 — DATE_PARSE 룰 미적용, 3가지 포맷 혼재. 신뢰도 58%.", action:"날짜 표준화 룰 등록" },
+  { id:3, level:"medium", title:"QTY 단위 불명확", desc:"A업체 ERP QTY 컬럼 — EA vs KG 단위 미확인. OrderLine.quantity 적재 전 단위 코드 검증 필요.", action:"단위 코드 검증 추가" },
+  { id:4, level:"medium", title:"AMT 통화 코드 누락", desc:"A업체 ERP AMT — KRW 확인 필요. OrderLine.amount_krw 매핑 시 통화 메타 추가 권장.", action:"통화 메타 컬럼 추가" },
+  { id:5, level:"low",    title:"ITEM_CD vs 품번 중복 엔티티", desc:"A업체 ERP ITEM_CD와 Excel BOM 품번이 동일 엔티티일 가능성 있음. 중복 canonical 키 확인 필요.", action:"엔티티 병합 검토" },
+];
+
+function StarSchemaView() {
+  const [selTable, setSelTable] = useState<string|null>(null);
+  const sel = DW_TABLES.find(t=>t.id===selTable)||null;
+
+  const getCx = (t:DWTable) => t.x + 90;
+  const getCy = (t:DWTable) => t.y + 30;
+
+  return (
+    <div className="flex gap-5">
+      <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+          <DWIcon className="w-4 h-4 text-blue-500"/>
+          <span className="text-sm font-semibold text-slate-900">Star Schema — DW 다차원 모델</span>
+          <span className="text-xs text-slate-400 ml-2">강의 p.276 기반 · Fact Table 중심 방사형</span>
+        </div>
+        <div className="p-4">
+          <svg viewBox="0 0 720 470" className="w-full" style={{minHeight:320}}>
+            <defs>
+              <marker id="dw-arr" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto">
+                <path d="M0,0 L0,7 L7,3.5 z" fill="#94a3b8"/>
+              </marker>
+            </defs>
+            {/* 엣지 */}
+            {DW_EDGES.map((e,i)=>{
+              const from = DW_TABLES.find(t=>t.id===e.from)!;
+              const to   = DW_TABLES.find(t=>t.id===e.to)!;
+              const fx=getCx(from); const fy=getCy(from);
+              const tx=getCx(to);   const ty=getCy(to);
+              const mx=(fx+tx)/2; const my=(fy+ty)/2;
+              return (
+                <g key={i}>
+                  <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#cbd5e1" strokeWidth="1.5" markerEnd="url(#dw-arr)" strokeDasharray="5,3"/>
+                  <text x={mx} y={my-4} fontSize="8" fill="#94a3b8" textAnchor="middle">{e.label}</text>
+                </g>
+              );
+            })}
+            {/* 테이블 노드 */}
+            {DW_TABLES.map(t=>{
+              const isSel = selTable===t.id;
+              const rowH = 13; const hdr = 22;
+              const allCols = [...(t.type==="fact"?t.measures||[]:t.keys)];
+              const h = hdr + t.keys.length*rowH + (t.measures?t.measures.length*rowH+4:0) + 6;
+              return (
+                <g key={t.id} style={{cursor:"pointer"}} onClick={()=>setSelTable(selTable===t.id?null:t.id)}>
+                  <rect x={t.x} y={t.y} width={180} height={h} rx={6}
+                    fill={t.color} stroke={isSel?"#2563eb":t.stroke} strokeWidth={isSel?2.5:1.5}
+                    filter={isSel?"drop-shadow(0 2px 6px #2563eb44)":"none"}/>
+                  {/* 헤더 */}
+                  <rect x={t.x} y={t.y} width={180} height={hdr} rx={6} fill={t.stroke}/>
+                  <rect x={t.x} y={t.y+10} width={180} height={12} fill={t.stroke}/>
+                  <text x={t.x+90} y={t.y+14} fontSize="10" fontWeight="700" fill="#fff" textAnchor="middle">{t.label}</text>
+                  <text x={t.x+3} y={t.y+14} fontSize="7" fill={t.type==="fact"?"#bfdbfe":"#dcfce7"} textAnchor="start">{t.type==="fact"?"FACT":"DIM"}</text>
+                  {/* 키 컬럼 */}
+                  {t.keys.map((k,ki)=>(
+                    <g key={k}>
+                      <text x={t.x+8}  y={t.y+hdr+ki*rowH+10} fontSize="8" fill="#1e3a5f">🔑</text>
+                      <text x={t.x+20} y={t.y+hdr+ki*rowH+10} fontSize="8" fill="#334155" fontFamily="monospace">{k}</text>
+                    </g>
+                  ))}
+                  {/* 측정값 (Fact만) */}
+                  {t.measures&&(
+                    <>
+                      <line x1={t.x+4} y1={t.y+hdr+t.keys.length*rowH+2} x2={t.x+176} y2={t.y+hdr+t.keys.length*rowH+2} stroke="#cbd5e1" strokeWidth="0.7"/>
+                      {t.measures.map((m,mi)=>(
+                        <g key={m}>
+                          <text x={t.x+8}  y={t.y+hdr+(t.keys.length+mi)*rowH+rowH+8} fontSize="8" fill="#7c3aed">Σ</text>
+                          <text x={t.x+18} y={t.y+hdr+(t.keys.length+mi)*rowH+rowH+8} fontSize="8" fill="#5b21b6" fontFamily="monospace" fontWeight="600">{m}</text>
+                        </g>
+                      ))}
+                    </>
+                  )}
+                </g>
+              );
+            })}
+            <text x="360" y="456" fontSize="9" fill="#cbd5e1" textAnchor="middle">점선 = FK 참조 · 🔑 = 키 · Σ = 측정값 (Measure)</text>
+          </svg>
+        </div>
+      </div>
+
+      {/* 상세 패널 */}
+      <div className="w-56 shrink-0 space-y-3">
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <div className="text-xs font-semibold text-slate-500 mb-2">DW 모델 현황</div>
+          {[
+            {label:"Fact 테이블",value:"1개",cls:"text-blue-600"},
+            {label:"Dimension 테이블",value:"5개",cls:"text-emerald-600"},
+            {label:"FK 관계",value:"5개",cls:"text-slate-600"},
+            {label:"매핑 완료 컬럼",value:"22개",cls:"text-indigo-600"},
+          ].map(({label,value,cls})=>(
+            <div key={label} className="flex justify-between text-xs py-1 border-b border-slate-50">
+              <span className="text-slate-500">{label}</span><span className={`font-bold ${cls}`}>{value}</span>
+            </div>
+          ))}
+        </div>
+
+        {sel ? (
+          <div className="bg-white rounded-xl border border-blue-200 p-4 shadow-sm">
+            <div className="flex items-center gap-1.5 mb-3">
+              <Database className="w-3.5 h-3.5 text-blue-500"/>
+              <span className="text-xs font-bold text-slate-800">{sel.label}</span>
+            </div>
+            <div className="space-y-1 text-xs">
+              <div className="font-semibold text-slate-500 mb-1">키 컬럼</div>
+              {sel.keys.map(k=>(
+                <div key={k} className="flex items-center gap-1 font-mono text-slate-700"><span className="text-blue-400">🔑</span>{k}</div>
+              ))}
+              {sel.measures&&(
+                <>
+                  <div className="font-semibold text-slate-500 mt-2 mb-1">측정값</div>
+                  {sel.measures.map(m=>(
+                    <div key={m} className="flex items-center gap-1 font-mono text-violet-700"><span>Σ</span>{m}</div>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 text-xs text-slate-400 text-center">테이블 클릭 시 상세 표시</div>
+        )}
+
+        <div className="bg-blue-50 rounded-xl border border-blue-100 p-3 text-xs text-blue-700">
+          <div className="font-semibold mb-1">Star Schema 구조</div>
+          <ul className="space-y-1 text-blue-600">
+            <li>• Fact Table이 중앙에 위치</li>
+            <li>• Dimension Table이 방사형 배치</li>
+            <li>• FK로 Fact ↔ Dim 연결</li>
+            <li>• 집계는 Fact 측정값 기준</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OptimizeView() {
+  const levelColors = { high:"bg-rose-100 text-rose-700", medium:"bg-amber-100 text-amber-700", low:"bg-blue-100 text-blue-700" };
+  const levelLabel  = { high:"High", medium:"Medium", low:"Low" };
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <Lightbulb className="w-4 h-4 text-amber-500"/>
+          <span className="text-sm font-semibold text-slate-900">매핑 최적화 제안</span>
+          <span className="text-xs text-slate-400 ml-1">AI 분석 기반 · 신뢰도 저하 원인 및 개선 방안</span>
+        </div>
+        <div className="space-y-3">
+          {OPT_HINTS.map(h=>(
+            <div key={h.id} className="flex gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+              <div className="shrink-0 pt-0.5">
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${levelColors[h.level as keyof typeof levelColors]}`}>
+                  {levelLabel[h.level as keyof typeof levelLabel]}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-slate-800">{h.title}</div>
+                <div className="text-xs text-slate-500 mt-1 leading-relaxed">{h.desc}</div>
+              </div>
+              <div className="shrink-0">
+                <button className="text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 text-slate-600 font-medium transition-colors whitespace-nowrap">
+                  {h.action}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          { label:"미해결 High", value:"2건", cls:"text-rose-600", bg:"bg-rose-50 border-rose-100" },
+          { label:"미해결 Medium", value:"2건", cls:"text-amber-600", bg:"bg-amber-50 border-amber-100" },
+          { label:"예상 신뢰도 향상", value:"+12%p", cls:"text-emerald-600", bg:"bg-emerald-50 border-emerald-100" },
+        ].map(({label,value,cls,bg})=>(
+          <div key={label} className={`rounded-xl border p-4 ${bg}`}>
+            <div className={`text-2xl font-bold ${cls}`}>{value}</div>
+            <div className="text-xs text-slate-500 mt-0.5">{label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 type MappingStatus = "approved" | "pending" | "rejected";
 
@@ -181,7 +391,10 @@ function DetailPanel({ item, onClose }: { item: Mapping; onClose: () => void }) 
   );
 }
 
+type PageView = "mapping" | "dw-model" | "optimize";
+
 export default function SchemaMapping() {
+  const [pageView, setPageView] = useState<PageView>("mapping");
   const [items, setItems] = useState<Mapping[]>(BASE_MAPPINGS);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<MappingStatus|"all">("all");
@@ -237,7 +450,22 @@ export default function SchemaMapping() {
           <h1 className="text-2xl font-bold text-slate-900">Schema Mapping</h1>
           <p className="text-slate-500 mt-1 text-sm">업체별 컬럼을 Canonical 표준 필드에 매핑</p>
         </div>
+        <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+          {([["mapping","매핑 목록",Shuffle],["dw-model","DW 모델",DWIcon],["optimize","최적화 제안",Lightbulb]] as const).map(([v,label,Icon])=>(
+            <button key={v} onClick={()=>setPageView(v)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${pageView===v?"bg-white text-blue-700 shadow-sm":"text-slate-500 hover:text-slate-700"}`}>
+              <Icon className="w-3.5 h-3.5"/>{label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* DW 모델 / 최적화 뷰 */}
+      {pageView==="dw-model" && <StarSchemaView/>}
+      {pageView==="optimize" && <OptimizeView/>}
+
+      {/* 매핑 목록 뷰 */}
+      {pageView==="mapping" && <>
 
       {/* KPI */}
       <div className="grid grid-cols-5 gap-3">
@@ -404,6 +632,8 @@ export default function SchemaMapping() {
           <DetailPanel item={selectedItem} onClose={()=>setSelected(null)}/>
         </>
       )}
+
+      </> /* end pageView==="mapping" */}
     </div>
   );
 }
