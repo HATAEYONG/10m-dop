@@ -3,6 +3,187 @@
 import { useState, useEffect, useRef } from "react";
 import { GitBranch, Clock, X, Zap } from "lucide-react";
 
+/* ── DW 아키텍처 데이터 ── */
+const DW_LAYERS = [
+  {
+    id:"etl", label:"ETL / 수집", color:"#eff6ff", stroke:"#3b82f6", textColor:"#1d4ed8",
+    desc:"업체별 원천에서 추출·변환·적재",
+    tables:[
+      {name:"A업체 더존 ERP",    tag:"ERP",  qual:91},
+      {name:"A업체 Excel BOM",   tag:"Excel",qual:72},
+      {name:"B업체 SAP ERP",     tag:"SAP",  qual:97},
+      {name:"C업체 수기 Excel",  tag:"Excel",qual:60},
+      {name:"D업체 Odoo ERP",    tag:"Odoo", qual:92},
+      {name:"CNC S7-1500 PLC",   tag:"PLC",  qual:99},
+    ],
+  },
+  {
+    id:"ods", label:"ODS", color:"#fff7ed", stroke:"#f97316", textColor:"#c2410c",
+    desc:"Operational Data Store — 정규화 · 클렌징",
+    tables:[
+      {name:"ODS_ORDER",    tag:"주문",   qual:88},
+      {name:"ODS_MATERIAL", tag:"자재",   qual:91},
+      {name:"ODS_CUSTOMER", tag:"고객",   qual:85},
+      {name:"ODS_SENSOR",   tag:"센서",   qual:97},
+      {name:"ODS_PRODUCT",  tag:"제품",   qual:90},
+    ],
+  },
+  {
+    id:"dw", label:"DW", color:"#faf5ff", stroke:"#7c3aed", textColor:"#6d28d9",
+    desc:"Data Warehouse — Star Schema · 이력 보존",
+    tables:[
+      {name:"FACT_ORDER",   tag:"Fact",   qual:94},
+      {name:"DIM_DATE",     tag:"Dim",    qual:100},
+      {name:"DIM_CUSTOMER", tag:"Dim",    qual:90},
+      {name:"DIM_PRODUCT",  tag:"Dim",    qual:92},
+      {name:"DIM_MATERIAL", tag:"Dim",    qual:95},
+      {name:"DIM_PLANT",    tag:"Dim",    qual:93},
+    ],
+  },
+  {
+    id:"mart", label:"MART", color:"#f0fdf4", stroke:"#16a34a", textColor:"#15803d",
+    desc:"데이터 마트 — 도메인별 집계 · BI 제공",
+    tables:[
+      {name:"MART_SALES",    tag:"영업",  qual:95},
+      {name:"MART_QUALITY",  tag:"품질",  qual:88},
+      {name:"MART_SUPPLY",   tag:"공급망",qual:91},
+      {name:"MART_SENSOR",   tag:"설비",  qual:97},
+      {name:"MART_CUSTOMER", tag:"고객",  qual:90},
+    ],
+  },
+];
+
+function DWArchView() {
+  const [selLayer, setSelLayer] = useState<string|null>(null);
+  const [selTable, setSelTable] = useState<string|null>(null);
+
+  return (
+    <div className="space-y-4">
+      {/* 레이어 흐름 */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 overflow-x-auto">
+        <div className="flex items-start gap-0 min-w-[900px]">
+          {DW_LAYERS.map((layer, li)=>(
+            <div key={layer.id} className="flex items-center flex-1">
+              <div
+                className={`flex-1 rounded-xl border-2 overflow-hidden cursor-pointer transition-all ${selLayer===layer.id?"ring-2 ring-offset-1":""}`}
+                style={{borderColor:layer.stroke, background:layer.color}}
+                onClick={()=>setSelLayer(selLayer===layer.id?null:layer.id)}>
+                {/* 레이어 헤더 */}
+                <div className="px-3 py-2 text-center" style={{background:layer.stroke}}>
+                  <div className="text-xs font-bold text-white">{layer.label}</div>
+                </div>
+                <div className="px-3 py-1 text-center border-b" style={{borderColor:layer.stroke+"44"}}>
+                  <div className="text-[10px]" style={{color:layer.textColor}}>{layer.desc}</div>
+                </div>
+                {/* 테이블 목록 */}
+                <div className="p-2 space-y-1">
+                  {layer.tables.map(t=>{
+                    const qc = t.qual>=90?"#22c55e":t.qual>=70?"#f59e0b":"#ef4444";
+                    const isSel = selTable===`${layer.id}:${t.name}`;
+                    return (
+                      <div key={t.name}
+                        onClick={e=>{e.stopPropagation();setSelTable(isSel?null:`${layer.id}:${t.name}`);}}
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs transition-colors cursor-pointer ${isSel?"ring-1":"hover:opacity-90"}`}
+                        style={{background:"#fff",borderColor:isSel?layer.stroke:"#e2e8f0"}}>
+                        <span className="text-[9px] px-1 py-0.5 rounded font-bold" style={{background:layer.stroke+"22",color:layer.textColor}}>{t.tag}</span>
+                        <span className="font-mono text-slate-700 truncate flex-1" style={{fontSize:"10px"}}>{t.name}</span>
+                        <span className="shrink-0 text-[9px] font-bold" style={{color:qc}}>{t.qual}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              {/* 화살표 */}
+              {li<DW_LAYERS.length-1&&(
+                <div className="flex flex-col items-center justify-center px-2 shrink-0">
+                  <svg width="32" height="32" viewBox="0 0 32 32">
+                    <defs>
+                      <marker id={`arr-${li}`} markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+                        <path d="M0,0 L0,6 L6,3 z" fill="#94a3b8"/>
+                      </marker>
+                    </defs>
+                    <line x1="4" y1="16" x2="26" y2="16" stroke="#94a3b8" strokeWidth="2" markerEnd={`url(#arr-${li})`}/>
+                  </svg>
+                  <span className="text-[8px] text-slate-400 whitespace-nowrap">
+                    {["추출/변환","정규화","집계"][li]}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 하단: KPI + 선택된 테이블 상세 */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <div className="text-sm font-semibold text-slate-700 mb-3">레이어별 품질 현황</div>
+          <div className="space-y-3">
+            {DW_LAYERS.map(layer=>{
+              const avg = Math.round(layer.tables.reduce((s,t)=>s+t.qual,0)/layer.tables.length);
+              return (
+                <div key={layer.id} className="flex items-center gap-3">
+                  <div className="w-14 text-xs font-bold" style={{color:layer.textColor}}>{layer.label}</div>
+                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{width:avg+"%", background:layer.stroke}}/>
+                  </div>
+                  <span className="text-xs font-bold w-10 text-right" style={{color:layer.stroke}}>{avg}%</span>
+                  <span className="text-xs text-slate-400">{layer.tables.length}개</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <div className="text-sm font-semibold text-slate-700 mb-3">DW 아키텍처 개요</div>
+          {selTable ? (
+            <div className="text-xs space-y-2">
+              {(()=>{
+                const [layerId, tName] = selTable.split(":");
+                const layer = DW_LAYERS.find(l=>l.id===layerId)!;
+                const t = layer.tables.find(t=>t.name===tName)!;
+                return (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded font-bold text-xs" style={{background:layer.stroke+"22",color:layer.textColor}}>{layer.label}</span>
+                      <span className="font-mono font-bold text-slate-800">{t.name}</span>
+                    </div>
+                    <div className="flex justify-between bg-slate-50 rounded-lg px-3 py-2">
+                      <span className="text-slate-500">태그</span><span className="font-bold text-slate-700">{t.tag}</span>
+                    </div>
+                    <div className="flex justify-between bg-slate-50 rounded-lg px-3 py-2">
+                      <span className="text-slate-500">데이터 품질</span>
+                      <span className="font-bold" style={{color:t.qual>=90?"#16a34a":t.qual>=70?"#d97706":"#dc2626"}}>{t.qual}%</span>
+                    </div>
+                    <div className="flex justify-between bg-slate-50 rounded-lg px-3 py-2">
+                      <span className="text-slate-500">레이어 설명</span><span className="text-slate-600">{layer.desc}</span>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          ) : (
+            <div className="space-y-2 text-xs">
+              {[
+                {k:"ETL → ODS",v:"추출·변환·클렌징 (5개 업체 + IoT)"},
+                {k:"ODS → DW",v:"Star Schema 구축 — Fact+Dim 정규화"},
+                {k:"DW → MART",v:"도메인별 집계 뷰 생성"},
+                {k:"총 테이블",v:`${DW_LAYERS.reduce((s,l)=>s+l.tables.length,0)}개`},
+              ].map(({k,v})=>(
+                <div key={k} className="flex justify-between bg-slate-50 rounded-lg px-3 py-2">
+                  <span className="text-slate-500">{k}</span><span className="font-medium text-slate-700">{v}</span>
+                </div>
+              ))}
+              <div className="text-slate-400 text-[10px] mt-2 text-center">테이블 클릭 시 상세 표시</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type LineageNodeType = "source"|"transform"|"destination"|"issue";
 interface LineageNode {
   id:string; label:string; sub:string; type:LineageNodeType;
@@ -213,6 +394,7 @@ function NodeSlidePanel({ node, onClose }: { node: LineageNode; onClose: ()=>voi
 }
 
 export default function DataLineage() {
+  const [mainView, setMainView] = useState<"dag"|"dw-arch">("dag");
   const [selectedField, setSelectedField] = useState("f1");
   const [selectedNode, setSelectedNode] = useState<string|null>(null);
   const [filterDomain, setFilterDomain] = useState<string|null>(null);
@@ -247,7 +429,21 @@ export default function DataLineage() {
           <h1 className="text-2xl font-bold text-slate-900">Data Lineage</h1>
           <p className="text-slate-500 mt-1 text-sm">필드 단위 데이터 계보 — 출처·변환·목적지를 DAG로 추적합니다</p>
         </div>
+        <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+          {([["dag","필드 계보 (DAG)"],["dw-arch","DW 아키텍처"]] as const).map(([v,label])=>(
+            <button key={v} onClick={()=>setMainView(v)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${mainView===v?"bg-white text-blue-700 shadow-sm":"text-slate-500 hover:text-slate-700"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* DW 아키텍처 뷰 */}
+      {mainView==="dw-arch" && <DWArchView/>}
+
+      {/* DAG 뷰 */}
+      {mainView==="dag" && <>
 
       {/* KPI 4카드 */}
       <div className="grid grid-cols-4 gap-3">
@@ -435,6 +631,8 @@ export default function DataLineage() {
           <NodeSlidePanel node={selNode} onClose={()=>setSelectedNode(null)}/>
         </>
       )}
+
+      </> /* end mainView==="dag" */}
     </div>
   );
 }
