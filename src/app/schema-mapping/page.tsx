@@ -240,6 +240,32 @@ const BASE_MAPPINGS: Mapping[] = [
   { id:16, source:"D업체 Odoo",       srcCol:"partner_id",     srcType:"INTEGER",       canonical:"Customer.customer_id",  confidence:93, status:"approved", note:"",                                    sampleValues:["12","45","301"], transform:"INT_TO_STR" },
   { id:17, source:"D업체 Odoo",       srcCol:"product_tmpl_id",srcType:"INTEGER",       canonical:"Product.product_id",    confidence:90, status:"approved", note:"",                                    sampleValues:["8","22","157"], transform:"INT_TO_STR" },
   { id:18, source:"D업체 Odoo",       srcCol:"date_order",     srcType:"DATETIME",      canonical:"Order.order_date",      confidence:92, status:"approved", note:"",                                    sampleValues:["2026-06-18 09:14:32","2026-06-17 14:22:01"], transform:"DATE_TRUNC" },
+  /* ── E업체 YH ERP — QMM 품질관리 ── */
+  { id:19, source:"YH QMM 품질",     srcCol:"iqc_no",         srcType:"VARCHAR(20)",   canonical:"Inspection.inspection_id", confidence:97, status:"approved", note:"IQC 수입검사 번호 — PK",               sampleValues:["IQC2026001","IQC2026002"], transform:"DIRECT" },
+  { id:20, source:"YH QMM 품질",     srcCol:"cust_cd",        srcType:"VARCHAR(20)",   canonical:"Customer.customer_id",     confidence:93, status:"approved", note:"QMM100.cust_cd → 거래처 코드",        sampleValues:["C0021","C0045","C-HDM"], transform:"DIRECT" },
+  { id:21, source:"YH QMM 품질",     srcCol:"itm_id",         srcType:"INT(10)",       canonical:"Product.product_id",       confidence:89, status:"pending",  note:"INT 키 → 품목코드 조인 필요 (itm_bc)", sampleValues:["1024","3821","5012"], transform:"INT_TO_STR" },
+  { id:22, source:"YH QMM 품질",     srcCol:"dlv_qty",        srcType:"DECIMAL(18,5)", canonical:"Inspection.qty_received",  confidence:95, status:"approved", note:"",                                    sampleValues:["500.00000","1200.00000"], transform:"CAST_DECIMAL" },
+  { id:23, source:"YH QMM 품질",     srcCol:"ok_qty",         srcType:"DECIMAL(18,5)", canonical:"Inspection.qty_ok",        confidence:95, status:"approved", note:"",                                    sampleValues:["498.00000","1195.00000"], transform:"CAST_DECIMAL" },
+  { id:24, source:"YH QMM 품질",     srcCol:"bad_qty",        srcType:"DECIMAL(18,5)", canonical:"Inspection.qty_defect",    confidence:95, status:"approved", note:"불량수량 — QC defect count",          sampleValues:["2.00000","5.00000"], transform:"CAST_DECIMAL" },
+  /* ── E업체 YH ERP — COS 원가관리 ── */
+  { id:25, source:"YH COS 원가",     srcCol:"itm_cd",         srcType:"VARCHAR(40)",   canonical:"Product.product_id",       confidence:91, status:"approved", note:"COS200_YH 품목코드",                  sampleValues:["P-AL6061-01","P-PCB-M02"], transform:"DIRECT" },
+  { id:26, source:"YH COS 원가",     srcCol:"itm_nm",         srcType:"VARCHAR(100)",  canonical:"Product.name",             confidence:88, status:"approved", note:"",                                    sampleValues:["AL6061 판재 3T","PCB 메인보드"], transform:"TRIM" },
+  { id:27, source:"YH COS 원가",     srcCol:"in_qty",         srcType:"DECIMAL(18,5)", canonical:"OrderLine.quantity",       confidence:86, status:"pending",  note:"입고수량 — 단위 EA 확인 필요",        sampleValues:["1000.00000","500.00000"], transform:"CAST_DECIMAL" },
+  { id:28, source:"YH COS 원가",     srcCol:"in_amt",         srcType:"DECIMAL(18,5)", canonical:"OrderLine.amount_krw",     confidence:84, status:"pending",  note:"입고금액 KRW",                        sampleValues:["3500000.00000","1250000.00000"], transform:"CAST_DECIMAL" },
+  { id:29, source:"YH COS 원가",     srcCol:"end_up",         srcType:"DECIMAL(18,10)","canonical":"Product.unit_cost",      confidence:90, status:"approved", note:"기말 단가 — 원가 단가 기준",          sampleValues:["3500.0000000000","2500.0000000000"], transform:"CAST_DECIMAL" },
+  { id:30, source:"YH COS 원가",     srcCol:"cost_mon",       srcType:"CHAR(7)",       canonical:"CostPeriod.period_ym",     confidence:82, status:"pending",  note:"원가계산 월 YYYYMM 형식",             sampleValues:["202601","202602"], transform:"DATE_FORMAT" },
+  /* ── E업체 YH ERP — CAM 재고관리 ── */
+  { id:31, source:"YH CAM 재고",     srcCol:"itm_cd",         srcType:"VARCHAR(40)",   canonical:"Material.material_id",     confidence:90, status:"approved", note:"CAM100_YH 자재코드",                  sampleValues:["M-SUS304-2T","M-AL6061"], transform:"DIRECT" },
+  { id:32, source:"YH CAM 재고",     srcCol:"end_qty",        srcType:"DECIMAL(18,5)", canonical:"Inventory.end_qty",        confidence:92, status:"approved", note:"기말재고수량",                        sampleValues:["2400.00000","850.00000"], transform:"CAST_DECIMAL" },
+  { id:33, source:"YH CAM 재고",     srcCol:"end_amt",        srcType:"DECIMAL(18,5)", canonical:"Inventory.end_amt",        confidence:91, status:"approved", note:"기말재고금액 KRW",                   sampleValues:["8400000.00000","2125000.00000"], transform:"CAST_DECIMAL" },
+  /* ── E업체 YH ERP — PPZ 생산설비 ── */
+  { id:34, source:"YH PPZ 생산",     srcCol:"wc_cd",          srcType:"VARCHAR(10)",   canonical:"WorkCenter.wc_id",         confidence:96, status:"approved", note:"PPZ100 작업센터 코드 — PK",           sampleValues:["WC-INJ-01","WC-ASM-03"], transform:"DIRECT" },
+  { id:35, source:"YH PPZ 생산",     srcCol:"wc_nm",          srcType:"NVARCHAR(50)",  canonical:"WorkCenter.name",          confidence:94, status:"approved", note:"",                                    sampleValues:["사출 1호기 라인","조립 3라인"], transform:"TRIM" },
+  { id:36, source:"YH PPZ 생산",     srcCol:"fac_cd",         srcType:"VARCHAR(10)",   canonical:"Plant.plant_id",           confidence:96, status:"approved", note:"공장코드 — co_cd와 함께 복합키",      sampleValues:["FAC01","FAC02"], transform:"DIRECT" },
+  /* ── E업체 YH ERP — LEB 출고/창고 ── */
+  { id:37, source:"YH LEB 출고",     srcCol:"out_no",         srcType:"VARCHAR(20)",   canonical:"Delivery.delivery_id",     confidence:97, status:"approved", note:"LEB100 출고번호 — PK",               sampleValues:["OUT202601001","OUT202601002"], transform:"DIRECT" },
+  { id:38, source:"YH LEB 출고",     srcCol:"out_qty",        srcType:"DECIMAL(18,5)", canonical:"Delivery.qty",             confidence:93, status:"approved", note:"출고수량",                           sampleValues:["100.00000","50.00000"], transform:"CAST_DECIMAL" },
+  { id:39, source:"YH LEB 출고",     srcCol:"out_amt",        srcType:"DECIMAL(18,5)", canonical:"Delivery.amount_krw",      confidence:91, status:"approved", note:"출고금액 KRW",                       sampleValues:["350000.00000","175000.00000"], transform:"CAST_DECIMAL" },
 ];
 
 const TRANSFORM_LABELS: Record<string,{label:string;color:string}> = {
@@ -271,9 +297,12 @@ const MAPPING_FEED = [
   "B업체 SAP — MATNR 선행0 제거 변환 적용",
   "C업체 Excel — 거래처 Entity Resolution 진행 중",
   "D업체 Odoo — partner_id INT→STR 변환 완료",
-  "스키마 검증 — 312개 컬럼 중 287개 매핑 완료",
-  "Human Review — 미매핑 25건 큐 등록",
-  "자동 승인 — 신뢰도 90%+ 컬럼 7건 일괄 처리",
+  "E업체 YH QMM — iqc_no·ok_qty·bad_qty 21개 컬럼 적재 완료",
+  "E업체 YH COS — itm_cd·end_up 원가 매핑 승인",
+  "E업체 YH LEB — out_no 출고 Delivery 매핑 완료",
+  "스키마 검증 — 533개 컬럼 중 498개 매핑 완료",
+  "Human Review — 미매핑 35건 큐 등록 (YH itm_id INT 조인 포함)",
+  "자동 승인 — 신뢰도 90%+ 컬럼 14건 일괄 처리",
 ];
 
 function SparkLine({ vals }: { vals: number[] }) {
