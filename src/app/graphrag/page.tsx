@@ -133,6 +133,281 @@ const EXAMPLE_QA: {q:string;answer:string;confidence:number;domains:string[];nod
   },
 ];
 
+/* ── E2E 그래프 데이터 ── */
+const SYSTEMS = [
+  { id:"plm",  label:"PLM",  color:"#3b82f6", bg:"#eff6ff", x:20,  tables:[
+    { id:"ECO_HEADER",        label:"ECO_HEADER",        cols:["ECO_NO","ECO_EFF_DT","ITEM_CD"], y:80  },
+    { id:"PLM_ITEM_MASTER",   label:"PLM_ITEM_MASTER",   cols:["ITEM_CD","SPG_CD","SERIES_CD"],  y:180 },
+    { id:"ECO_BOM_ITEM",      label:"ECO_BOM_ITEM",      cols:["ECO_NO","ITEM_CD","QTY"],        y:280 },
+  ]},
+  { id:"erp",  label:"ERP",  color:"#7c3aed", bg:"#faf5ff", x:230, tables:[
+    { id:"ERP_BOM",           label:"ERP_BOM",           cols:["ITEM_CD","BOM_CHNG_DT","QTY"],  y:80  },
+    { id:"ERP_COST_RECORD",   label:"ERP_COST_RECORD",   cols:["ITEM_CD","UNIT_COST","COST_YM"], y:200 },
+  ]},
+  { id:"mes",  label:"MES",  color:"#d97706", bg:"#fffbeb", x:440, tables:[
+    { id:"MES_WORKORDER",     label:"MES_WORKORDER",     cols:["WO_NO","SN","LINE_CD","WO_START_DT"], y:60  },
+    { id:"MES_RESULT_INV",    label:"TBL_MES_RESULT_INV",cols:["SN","EQP_ID","INRS_3","INRS_7"],     y:180 },
+    { id:"MATERIAL_TRAN",     label:"MATERIAL_TRAN",     cols:["WO_NO","ITEM_CD","ISSUE_QTY"],       y:300 },
+  ]},
+  { id:"qms",  label:"QMS",  color:"#dc2626", bg:"#fff1f2", x:650, tables:[
+    { id:"QMS_CLAIM",         label:"QMS_CLAIM",         cols:["SN","SPG_CD","RPAR_YN"],             y:80  },
+    { id:"QMS_8D_ACTION",     label:"QMS_8D_ACTION",     cols:["CLAIM_NO","ECO_NO","ACTION_DT"],     y:220 },
+  ]},
+];
+
+const DICT_NODES = [
+  { id:"D1", label:"D1 SN/EQP",  color:"#6366f1", x:390, y:115, desc:"SN 파싱·EQP_ID 분해" },
+  { id:"D2", label:"D2 SPG",     color:"#8b5cf6", x:600, y:50,  desc:"제품군 코드 계층" },
+  { id:"D3", label:"D3 ECO Rev", color:"#f59e0b", x:175, y:350, desc:"ECO_NO revision 규칙" },
+  { id:"D4", label:"D4 INV Col", color:"#ef4444", x:390, y:240, desc:"설비별 검사 컬럼 매핑" },
+  { id:"D5", label:"D5 FIFO",    color:"#22c55e", x:390, y:360, desc:"LOT 8단계 FIFO 역추적" },
+  { id:"D6", label:"D6 발효일",  color:"#64748b", x:175, y:50,  desc:"PLM·ERP·MES 발효일 우선순위" },
+];
+
+const E2E_EDGES = [
+  { from:"ECO_HEADER",     to:"ERP_BOM",         dict:"D6", label:"BOM 발효일 연계" },
+  { from:"ECO_BOM_ITEM",   to:"ERP_BOM",         dict:"D3", label:"ECO_NO revision" },
+  { from:"ECO_HEADER",     to:"QMS_8D_ACTION",   dict:"D3", label:"원인 ECO 연결" },
+  { from:"ERP_BOM",        to:"MES_WORKORDER",   dict:"D6", label:"WO 발효일 기준" },
+  { from:"MES_WORKORDER",  to:"QMS_CLAIM",       dict:"D1", label:"SN 구조 파싱" },
+  { from:"MES_RESULT_INV", to:"QMS_CLAIM",       dict:"D4", label:"EQP_ID 컬럼 매핑" },
+  { from:"MATERIAL_TRAN",  to:"ECO_BOM_ITEM",    dict:"D5", label:"LOT FIFO 역추적" },
+  { from:"PLM_ITEM_MASTER",to:"QMS_CLAIM",       dict:"D2", label:"SPG_CD 제품군" },
+];
+
+const QE_PATH = ["QMS_CLAIM","MES_WORKORDER","MES_RESULT_INV","ECO_BOM_ITEM","ECO_HEADER","MATERIAL_TRAN"];
+const QE_PATH_DICT = ["D1","D4","D3","D3","D5"];
+const QE_STEPS = [
+  "QMS_CLAIM에서 SN 추출 → D1 파싱으로 라인·설비 코드 분해",
+  "MES_WORKORDER에서 SN 기준 작업지시 조회",
+  "TBL_MES_RESULT_INV에서 D4 매핑으로 EQP_ID → 결과 컬럼 조회",
+  "ECO_BOM_ITEM → ECO_HEADER로 D3 revision 식별 후 설계변경 추적",
+  "MATERIAL_TRAN에서 D5 8단계 FIFO로 LOT_ID 역추적 + D6 발효일 기준 적용",
+];
+
+function getTableCenter(tableId: string): {x:number;y:number} {
+  for(const sys of SYSTEMS){
+    const t=sys.tables.find(t=>t.id===tableId);
+    if(t) return {x:sys.x+95, y:t.y+28};
+  }
+  return {x:0,y:0};
+}
+
+function E2EGraphView() {
+  const [selTable, setSelTable] = useState<string|null>(null);
+  const [highlightPath, setHighlightPath] = useState(false);
+  const [selQEStep, setSelQEStep] = useState<number|null>(null);
+
+  const pathTableSet = new Set(QE_PATH);
+  const pathEdgeSet: Set<string> = new Set();
+  for(let i=0;i<QE_PATH.length-1;i++) pathEdgeSet.add(`${QE_PATH[i]}-${QE_PATH[i+1]}`);
+
+  return (
+    <div className="space-y-4">
+      {/* 컨트롤 */}
+      <div className="flex items-center gap-3">
+        <button onClick={()=>{setHighlightPath(p=>!p);setSelQEStep(null);}}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${highlightPath?"bg-rose-600 text-white border-rose-600":"bg-white text-slate-600 border-slate-200 hover:border-rose-400"}`}>
+          Quality Escape 경로 {highlightPath?"ON":"OFF"}
+        </button>
+        <span className="text-xs text-slate-400">테이블 클릭 → 상세 · Quality Escape 토글 → 6단계 경로 강조</span>
+      </div>
+
+      <div className="flex gap-4">
+        {/* E2E SVG */}
+        <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+            <span className="text-sm font-bold text-slate-900">E2E 시스템 연계도</span>
+            <span className="text-xs text-slate-400">— PLM → ERP → MES ↔ QMS + Dict 6종 연결점</span>
+          </div>
+          <div className="p-3">
+            <svg viewBox="0 0 850 430" className="w-full" style={{minHeight:300}}>
+              <defs>
+                <marker id="e2e-arr" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+                  <path d="M0,0 L0,7 L7,3.5 z" fill="#94a3b8"/>
+                </marker>
+                <marker id="e2e-arr-red" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+                  <path d="M0,0 L0,7 L7,3.5 z" fill="#ef4444"/>
+                </marker>
+              </defs>
+
+              {/* 시스템 박스 */}
+              {SYSTEMS.map(sys=>(
+                <g key={sys.id}>
+                  <rect x={sys.x} y={20} width={185} height={390} rx={10}
+                    fill={sys.bg} stroke={sys.color} strokeWidth="1.5" opacity={0.6}/>
+                  <rect x={sys.x} y={20} width={185} height={28} rx={10} fill={sys.color}/>
+                  <rect x={sys.x} y={36} width={185} height={12} fill={sys.color}/>
+                  <text x={sys.x+92} y={37} fontSize="11" fontWeight="700" fill="#fff" textAnchor="middle">{sys.label}</text>
+
+                  {/* 테이블 */}
+                  {sys.tables.map(t=>{
+                    const isSel=selTable===t.id;
+                    const inPath=highlightPath&&pathTableSet.has(t.id);
+                    return (
+                      <g key={t.id} style={{cursor:"pointer"}} onClick={()=>setSelTable(selTable===t.id?null:t.id)}>
+                        <rect x={sys.x+6} y={t.y} width={173} height={55} rx={6}
+                          fill="#fff" stroke={inPath?"#ef4444":isSel?"#2563eb":sys.color+"66"}
+                          strokeWidth={inPath||isSel?2.5:1}
+                          filter={inPath?"drop-shadow(0 0 6px #ef444488)":isSel?"drop-shadow(0 2px 4px #2563eb33)":"none"}/>
+                        <text x={sys.x+90} y={t.y+14} fontSize="8" fontWeight="700" fill="#1e293b" textAnchor="middle">{t.label}</text>
+                        {t.cols.slice(0,2).map((c,ci)=>(
+                          <text key={c} x={sys.x+12} y={t.y+26+ci*12} fontSize="7" fill="#64748b" fontFamily="monospace">{c}</text>
+                        ))}
+                        {t.cols.length>2&&(
+                          <text x={sys.x+12} y={t.y+50} fontSize="6" fill="#94a3b8">+{t.cols.length-2}개 더</text>
+                        )}
+                      </g>
+                    );
+                  })}
+                </g>
+              ))}
+
+              {/* E2E 엣지 */}
+              {E2E_EDGES.map((e,i)=>{
+                const f=getTableCenter(e.from); const t=getTableCenter(e.to);
+                const isPathEdge=highlightPath&&(pathEdgeSet.has(`${e.from}-${e.to}`)||pathEdgeSet.has(`${e.to}-${e.from}`));
+                const mx=(f.x+t.x)/2; const my=(f.y+t.y)/2;
+                const d=DICT_NODES.find(d=>d.id===e.dict);
+                return (
+                  <g key={i}>
+                    <path d={`M${f.x},${f.y} Q${mx},${my+20} ${t.x},${t.y}`}
+                      fill="none"
+                      stroke={isPathEdge?"#ef4444":"#cbd5e1"}
+                      strokeWidth={isPathEdge?2:"1"}
+                      strokeDasharray={isPathEdge?"none":"4,3"}
+                      markerEnd={isPathEdge?"url(#e2e-arr-red)":"url(#e2e-arr)"}
+                      opacity={isPathEdge?1:0.5}/>
+                    {d&&(
+                      <text x={mx} y={my+15} fontSize="7" fill={isPathEdge?d.color:"#94a3b8"}
+                        textAnchor="middle" fontWeight={isPathEdge?"700":"400"}>{e.dict}</text>
+                    )}
+                  </g>
+                );
+              })}
+
+              {/* Dict 노드 */}
+              {DICT_NODES.map(d=>(
+                <g key={d.id}>
+                  <circle cx={d.x} cy={d.y} r={20} fill="#fff" stroke={d.color} strokeWidth="1.5"/>
+                  <text x={d.x} y={d.y+3} fontSize="7" fontWeight="700" fill={d.color} textAnchor="middle">{d.id}</text>
+                  <text x={d.x} y={d.y+13} fontSize="6" fill="#94a3b8" textAnchor="middle">{d.label.slice(3)}</text>
+                </g>
+              ))}
+
+              <text x="425" y="418" fontSize="8" fill="#cbd5e1" textAnchor="middle">
+                점선=일반 연계 · 실선+빨강=Quality Escape 경로 · 원=Dict 연결점
+              </text>
+            </svg>
+          </div>
+        </div>
+
+        {/* 우측 패널 */}
+        <div className="w-60 shrink-0 space-y-3">
+          {/* 선택된 테이블 상세 */}
+          {selTable ? (
+            <div className="bg-white rounded-xl border border-blue-200 p-4 shadow-sm">
+              <div className="text-xs font-bold text-slate-800 mb-3">
+                {SYSTEMS.flatMap(s=>s.tables).find(t=>t.id===selTable)?.label}
+              </div>
+              {(()=>{
+                const sys=SYSTEMS.find(s=>s.tables.some(t=>t.id===selTable))!;
+                const t=sys.tables.find(t=>t.id===selTable)!;
+                return (
+                  <>
+                    <div className="text-[10px] px-2 py-0.5 rounded font-bold inline-block mb-3" style={{background:sys.color+"22",color:sys.color}}>{sys.label}</div>
+                    <div className="space-y-1.5 text-xs">
+                      <div className="text-slate-500 font-semibold">컬럼</div>
+                      {t.cols.map(c=>(
+                        <div key={c} className="font-mono bg-slate-50 rounded px-2 py-1 text-slate-700">{c}</div>
+                      ))}
+                    </div>
+                    {E2E_EDGES.filter(e=>e.from===t.id||e.to===t.id).length>0&&(
+                      <div className="mt-3 pt-3 border-t border-slate-100">
+                        <div className="text-xs text-slate-500 font-semibold mb-1.5">연결 엣지</div>
+                        {E2E_EDGES.filter(e=>e.from===t.id||e.to===t.id).map((e,i)=>{
+                          const other=e.from===t.id?e.to:e.from;
+                          const d=DICT_NODES.find(d=>d.id===e.dict);
+                          return (
+                            <div key={i} className="flex items-center gap-1.5 text-[10px] mb-1">
+                              <span className="text-slate-300">→</span>
+                              <span className="font-mono text-slate-600">{other}</span>
+                              {d&&<span className="px-1 rounded text-[9px] font-bold" style={{background:d.color+"22",color:d.color}}>{e.dict}</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          ) : (
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 text-xs text-slate-400 text-center">테이블 클릭 시 상세</div>
+          )}
+
+          {/* Dict 범례 */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+            <div className="text-xs font-bold text-slate-800 mb-3">Dict 6종 연결점</div>
+            <div className="space-y-2">
+              {DICT_NODES.map(d=>(
+                <div key={d.id} className="flex items-center gap-2 text-xs">
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[8px] font-bold" style={{background:d.color+"22",color:d.color,border:`1px solid ${d.color}`}}>{d.id}</div>
+                  <span className="text-slate-600 text-[10px]">{d.desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quality Escape 6단계 추적 경로 */}
+      {highlightPath && (
+        <div className="bg-white rounded-xl border-2 border-rose-200 shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"/>
+            <span className="text-sm font-bold text-rose-700">Quality Escape 6단계 추적 경로</span>
+            <span className="text-xs text-slate-400 ml-1">강의 p.258 기반 · Dict 5종 연계</span>
+          </div>
+          <div className="flex items-start gap-0 overflow-x-auto pb-2">
+            {QE_STEPS.map((step,i)=>(
+              <div key={i} className="flex items-center shrink-0">
+                <div onClick={()=>setSelQEStep(selQEStep===i?null:i)}
+                  className={`rounded-xl border-2 p-3 cursor-pointer transition-all w-44 ${selQEStep===i?"border-rose-400 bg-rose-50":"border-slate-200 bg-white hover:border-rose-300"}`}>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span className="w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">{i+1}</span>
+                    <span className="font-mono text-[10px] font-bold text-rose-700">{QE_PATH[i]?.replace("TBL_","")?.slice(0,12)}</span>
+                  </div>
+                  <div className="text-[10px] text-slate-500 leading-snug">{step.slice(0,60)}...</div>
+                  <div className="mt-1.5">
+                    <span className="text-[9px] px-1 rounded font-bold" style={{background:DICT_NODES.find(d=>d.id===QE_PATH_DICT[i])?.color+"22",color:DICT_NODES.find(d=>d.id===QE_PATH_DICT[i])?.color}}>
+                      {QE_PATH_DICT[i]}
+                    </span>
+                  </div>
+                </div>
+                {i<QE_STEPS.length-1&&(
+                  <div className="flex flex-col items-center px-1.5 shrink-0">
+                    <svg width="24" height="14" viewBox="0 0 24 14">
+                      <path d="M0,7 L18,7" stroke="#ef4444" strokeWidth="1.5"/>
+                      <path d="M14,3 L20,7 L14,11" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          {selQEStep!==null&&(
+            <div className="mt-3 bg-rose-50 rounded-xl border border-rose-200 p-3">
+              <div className="text-xs font-bold text-rose-700 mb-1">단계 {selQEStep+1} 상세</div>
+              <div className="text-xs text-slate-600 leading-relaxed">{QE_STEPS[selQEStep]}</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConfBar({ value }: { value: number }) {
   const cls = value>=80?"bg-emerald-500":value>=60?"bg-amber-400":"bg-rose-400";
   const textCls = value>=80?"text-emerald-600":value>=60?"text-amber-600":"text-rose-600";
@@ -230,6 +505,7 @@ function NodePanel({ nodes, path, onClose }: { nodes: NodeCard[]; path: string; 
 }
 
 export default function GraphRAG() {
+  const [pageTab, setPageTab] = useState<"chat"|"e2e">("chat");
   const [messages, setMessages] = useState<Message[]>([{
     role:"assistant",
     text:"10M 지식 그래프에 연결됐습니다. 온보딩된 4개 업체 데이터 기반으로 자연어로 질문하세요.\n\n아래 예시 질문을 클릭하거나 직접 입력할 수 있습니다.",
@@ -296,6 +572,14 @@ export default function GraphRAG() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">GraphRAG Demo</h1>
           <p className="text-slate-500 mt-1 text-sm">온보딩된 지식 그래프에 자연어로 질문하세요 — AI가 근거 노드와 함께 답변합니다</p>
+          <div className="flex gap-1 mt-2 bg-slate-100 rounded-xl p-1 w-fit">
+            {([["chat","GraphRAG 질의"],["e2e","E2E 그래프"]] as const).map(([v,l])=>(
+              <button key={v} onClick={()=>setPageTab(v)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${pageTab===v?"bg-white text-blue-700 shadow-sm":"text-slate-500 hover:text-slate-700"}`}>
+                {l}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex gap-2 text-xs">
           {[
@@ -311,7 +595,9 @@ export default function GraphRAG() {
         </div>
       </div>
 
-      <div className="flex gap-4 flex-1 min-h-0">
+      {pageTab==="e2e"&&<div className="flex-1 overflow-y-auto"><E2EGraphView/></div>}
+
+      {pageTab==="chat"&&<div className="flex gap-4 flex-1 min-h-0">
         {/* 채팅 패널 */}
         <div className="flex-1 flex flex-col bg-white rounded-xl border border-slate-200 overflow-hidden">
           {/* 그룹 필터 + 예시 질문 */}
@@ -429,7 +715,7 @@ export default function GraphRAG() {
             </div>
           </div>
         </div>
-      </div>
+      </div>}
 
       {panelData&&(
         <>
