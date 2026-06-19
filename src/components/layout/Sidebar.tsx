@@ -9,7 +9,7 @@ import {
   CheckCircle, Building2, Map, FileSearch, ClipboardCheck, Sparkles,
   Factory, Play, Bot, FileBarChart2, MessageSquareText, Plug, Mail,
   Newspaper, CalendarClock, RadioTower, Cpu, Network as NetworkIcon,
-  GitMerge, ShieldCheck, Upload, ChevronDown, Zap, Globe, Wrench,
+  GitMerge, ShieldCheck, Upload, ChevronDown, Zap, Globe, Wrench, SearchCode,
 } from "lucide-react";
 
 type NavItem = { href: string; icon: React.ElementType; label: string; sub: string };
@@ -47,6 +47,7 @@ const OPS: NavItem[] = [
   { href: "/mes-viewer",        icon: Factory,         label: "MES Viewer",       sub: "공정·설비 현황" },
   { href: "/aps-planner",       icon: CalendarClock,   label: "APS Planner",      sub: "수급 계획·납기 관리" },
   { href: "/supply-chain-twin", icon: NetworkIcon,     label: "Supply Chain Twin",sub: "공급망 디지털 트윈" },
+  { href: "/eco-tracker",       icon: SearchCode,      label: "ECO Tracker",      sub: "Quality Escape 추적" },
   { href: "/maintenance",       icon: Wrench,          label: "Maintenance",      sub: "설비 보전·예지정비" },
   { href: "/energy",            icon: Zap,             label: "Energy Monitor",   sub: "전력·가스 소비 모니터링" },
   { href: "/milieu",            icon: Globe,           label: "Milieu Monitor",   sub: "외부환경·공급망 기후" },
