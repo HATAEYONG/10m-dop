@@ -157,7 +157,7 @@ const INIT_TAGS: Tag[] = [
 ];
 
 // ────────────────────────────────────────────────────────────
-//  10M 도메인 적재 결과
+//  10M 도메인 적재 결과 (기존 — 탭3 바차트용)
 // ────────────────────────────────────────────────────────────
 const DOMAIN_RESULT = [
   { domain: "Machine",      records: 2841600, color: "bg-blue-500",    pct: 100 },
@@ -170,6 +170,177 @@ const DOMAIN_RESULT = [
   { domain: "Customer",     records: 9800,    color: "bg-rose-500",    pct: 0.3 },
   { domain: "Maintenance",  records: 6200,    color: "bg-orange-500",  pct: 0.2 },
   { domain: "Product",      records: 3100,    color: "bg-pink-500",    pct: 0.1 },
+];
+
+// ────────────────────────────────────────────────────────────
+//  10M 마스터 도메인 체크 데이터
+// ────────────────────────────────────────────────────────────
+type DomainStatus = "connected" | "partial" | "missing";
+
+interface CheckItem { label: string; ok: boolean; note?: string }
+interface TenMDomain {
+  key: string; kor: string; group: "core" | "extended";
+  status: DomainStatus;
+  records: number; source: string;
+  readiness: number;   // AI 활용 준비도 0~100
+  qualityScore: number;
+  checks: CheckItem[];
+  gaps: string[];
+  nextAction: string; actionHref: string;
+  color: string; accent: string;
+}
+
+const TEN_M_DOMAINS: TenMDomain[] = [
+  {
+    key:"Man", kor:"작업자·숙련도", group:"core",
+    status:"partial", records:5420, source:"MES 작업실적 + Human Review",
+    readiness:62, qualityScore:71,
+    checks:[
+      { label:"작업자 ID (사번) 존재", ok:true },
+      { label:"작업 시간 기록", ok:true },
+      { label:"숙련도 등급 데이터", ok:false, note:"자체 평가 체계 없음" },
+      { label:"오류율·불량 귀책 연계", ok:true },
+      { label:"자격증·교육 이수 이력", ok:false, note:"인사 시스템 미연결" },
+    ],
+    gaps:["숙련도 점수 체계 미구축","인사 DB 연동 필요 (HR 시스템)"],
+    nextAction:"Human Review 이동", actionHref:"/human-review",
+    color:"bg-sky-500", accent:"text-sky-600",
+  },
+  {
+    key:"Machine", kor:"설비 가동·진동", group:"core",
+    status:"connected", records:2841600, source:"MES 설비로그 + OPC-UA 실시간",
+    readiness:94, qualityScore:91,
+    checks:[
+      { label:"설비 마스터 (equip_cd) 존재", ok:true },
+      { label:"가동률·상태 코드", ok:true },
+      { label:"주축 RPM·이송속도", ok:true },
+      { label:"진동 데이터 (OPC-UA)", ok:true },
+      { label:"설비-공정 연계 FK", ok:true },
+    ],
+    gaps:["진동 이상 임계치 온톨로지 미매핑"],
+    nextAction:"Sensor Gateway 확인", actionHref:"/sensor-gateway",
+    color:"bg-blue-500", accent:"text-blue-600",
+  },
+  {
+    key:"Material", kor:"원자재·자재정보", group:"core",
+    status:"connected", records:312480, source:"더존 ERP (자재 마스터)",
+    readiness:88, qualityScore:85,
+    checks:[
+      { label:"자재코드 (mat_cd) 표준화", ok:true },
+      { label:"자재 규격·단위", ok:true },
+      { label:"공급처 FK 연계", ok:true },
+      { label:"재고·안전재고 데이터", ok:true },
+      { label:"자재-BOM 연계", ok:false, note:"BOM 테이블 외래키 누락 14건" },
+    ],
+    gaps:["BOM FK 누락 14건 수정 필요","단위 혼재 3건 (EA vs PCS)"],
+    nextAction:"Data Cleaner 이동", actionHref:"/data-cleaner",
+    color:"bg-indigo-500", accent:"text-indigo-600",
+  },
+  {
+    key:"Method", kor:"작업표준·공정조건", group:"core",
+    status:"partial", records:12300, source:"PDF 작업표준서 AI 파싱",
+    readiness:71, qualityScore:78,
+    checks:[
+      { label:"공정코드 (proc_cd) 존재", ok:true },
+      { label:"작업 표준서 PDF 적재", ok:true },
+      { label:"공정 파라미터 추출 (rpm·이송속도)", ok:true },
+      { label:"표준 개정 이력 추적", ok:false, note:"버전 관리 체계 없음" },
+      { label:"인간 검토 승인 완료율", ok:false, note:"42건 미승인 잔존" },
+    ],
+    gaps:["검사성적서 42건 파싱 재시도 필요","표준 개정 버전 관리 미흡"],
+    nextAction:"Document Parser 이동", actionHref:"/document-parser",
+    color:"bg-cyan-500", accent:"text-cyan-600",
+  },
+  {
+    key:"Energy", kor:"전력·가스 소비", group:"core",
+    status:"missing", records:0, source:"미연결 — 전력 계측기 API 필요",
+    readiness:8, qualityScore:0,
+    checks:[
+      { label:"전력 계측 데이터 연결", ok:false, note:"전력량계 API 미설치" },
+      { label:"설비별 전력 분리 계측", ok:false },
+      { label:"가스 소비 센서 연결", ok:false },
+      { label:"탄소 배출 환산 로직", ok:false },
+      { label:"피크 부하 시간대 정의", ok:false },
+    ],
+    gaps:["전력 계측기 IoT 게이트웨이 설치 필요","한전 API 연동 검토"],
+    nextAction:"Energy Monitor 이동", actionHref:"/energy",
+    color:"bg-yellow-500", accent:"text-yellow-600",
+  },
+  {
+    key:"Environment", kor:"온·습도·공기질", group:"core",
+    status:"partial", records:18200, source:"Sensor Gateway 환경 센서",
+    readiness:67, qualityScore:74,
+    checks:[
+      { label:"온도 센서 연결 (구역별)", ok:true },
+      { label:"습도 센서 연결", ok:true },
+      { label:"CO₂ 농도 수집", ok:true },
+      { label:"미세먼지 PM2.5 수집", ok:false, note:"도금라인 센서 미설치" },
+      { label:"환경-설비 가동 연계 분석", ok:false },
+    ],
+    gaps:["도금라인 PM2.5 센서 추가 필요","환경 데이터 10M 온톨로지 미매핑"],
+    nextAction:"Sensor Gateway 이동", actionHref:"/sensor-gateway",
+    color:"bg-teal-500", accent:"text-teal-600",
+  },
+  {
+    key:"Measurement", kor:"품질계측·검사", group:"extended",
+    status:"connected", records:892400, source:"MES 검사실적 + 검사성적서 PDF",
+    readiness:89, qualityScore:88,
+    checks:[
+      { label:"검사 결과 (OK/NG) 기록", ok:true },
+      { label:"불량 수량·불량 유형", ok:true },
+      { label:"측정 포인트 정의 (MeasurementPoint)", ok:true },
+      { label:"공정-검사 연계 FK", ok:true },
+      { label:"검사 장비 트레이서빌리티", ok:false, note:"게이지 R&R 데이터 없음" },
+    ],
+    gaps:["게이지 R&R 데이터 미수집","SPC 관리도 연동 검토"],
+    nextAction:"Quality Validator 이동", actionHref:"/quality",
+    color:"bg-violet-500", accent:"text-violet-600",
+  },
+  {
+    key:"Milieu", kor:"외부환경·공급망기후", group:"extended",
+    status:"missing", records:0, source:"미연결 — 외부 API 수집 필요",
+    readiness:12, qualityScore:0,
+    checks:[
+      { label:"기상 데이터 API 연결", ok:false, note:"기상청·AccuWeather 미연동" },
+      { label:"공급망 뉴스 모니터링", ok:false, note:"News Monitor 별도 운영" },
+      { label:"지정학 리스크 지수 수집", ok:false },
+      { label:"탄소세·규제 데이터 수집", ok:false },
+      { label:"Milieu 온톨로지 도메인 매핑", ok:false },
+    ],
+    gaps:["기상청 API 연동 필요","Milieu 도메인 온톨로지 정의 필요"],
+    nextAction:"Milieu Monitor 이동", actionHref:"/milieu",
+    color:"bg-green-500", accent:"text-green-600",
+  },
+  {
+    key:"Management", kor:"경영지표·ERP연동", group:"extended",
+    status:"connected", records:87200, source:"더존 ERP (수주·원가·거래처)",
+    readiness:82, qualityScore:83,
+    checks:[
+      { label:"수주/납기 데이터 연결", ok:true },
+      { label:"원가 기록 (CostRecord)", ok:true },
+      { label:"거래처 마스터 연결", ok:true },
+      { label:"경영 KPI 지표 정의", ok:false, note:"KPI 온톨로지 미매핑" },
+      { label:"재무 데이터 연동", ok:false, note:"ERP 재무모듈 미연결" },
+    ],
+    gaps:["ERP 재무 모듈 추가 연결 필요","Management 도메인 KPI 정의 필요"],
+    nextAction:"Governance 이동", actionHref:"/governance",
+    color:"bg-emerald-500", accent:"text-emerald-600",
+  },
+  {
+    key:"Maintenance", kor:"설비보전·예지정비", group:"extended",
+    status:"partial", records:6200, source:"MES alarm_cd + 정비 이력",
+    readiness:55, qualityScore:61,
+    checks:[
+      { label:"설비 알람 코드 수집", ok:true },
+      { label:"고장 이력 (FailureLog)", ok:true },
+      { label:"정비 계획 (PM 일정)", ok:false, note:"엑셀 수기 관리 — 미적재" },
+      { label:"MTBF·MTTR 계산 가능 여부", ok:false, note:"고장 시각 누락 28%" },
+      { label:"진동 이상 → 정비 트리거 연계", ok:false },
+    ],
+    gaps:["PM 일정 데이터 디지털화 필요","고장 시각 기록 정확도 개선 필요"],
+    nextAction:"Maintenance 이동", actionHref:"/maintenance",
+    color:"bg-orange-500", accent:"text-orange-600",
+  },
 ];
 
 // ────────────────────────────────────────────────────────────
@@ -238,7 +409,8 @@ function StepBar({ steps }: { steps: StepState[] }) {
 export default function IngestPage() {
   const [tags, setTags] = useState<Tag[]>(INIT_TAGS);
   const [selected, setSelected] = useState<string>("erp");
-  const [activeTab, setActiveTab] = useState<"sources" | "pdf" | "domains" | "schema" | "profile" | "pipeline">("sources");
+  const [activeTab, setActiveTab] = useState<"sources" | "pdf" | "domains" | "10m-check" | "schema" | "profile" | "pipeline">("sources");
+  const [checkSelected, setCheckSelected] = useState<string>("Man");
   const [schemaSource, setSchemaSource] = useState<string>("erp");
   const [totalEvents, setTotalEvents] = useState(4820);
   const tickRef = useRef(0);
@@ -323,12 +495,13 @@ export default function IngestPage() {
       {/* ── 탭 ── */}
       <div className="flex gap-2 border-b border-slate-200">
         {[
-          { id: "sources",  label: "데이터 소스 연결" },
-          { id: "pdf",      label: "비정형 AI 파싱" },
-          { id: "domains",  label: "10M 도메인 분류 결과" },
-          { id: "schema",   label: "연결 테이블 설계" },
-          { id: "profile",  label: "데이터 프로파일링" },
-          { id: "pipeline", label: "파이프라인 모니터" },
+          { id: "sources",   label: "데이터 소스 연결" },
+          { id: "pdf",       label: "비정형 AI 파싱" },
+          { id: "domains",   label: "10M 도메인 분류 결과" },
+          { id: "10m-check", label: "10M 체크" },
+          { id: "schema",    label: "연결 테이블 설계" },
+          { id: "profile",   label: "데이터 프로파일링" },
+          { id: "pipeline",  label: "파이프라인 모니터" },
         ].map(t => (
           <button
             key={t.id}
@@ -622,7 +795,236 @@ export default function IngestPage() {
       )}
 
       {/* ══════════════════════════════════
-          TAB 4: 연결 테이블 설계
+          TAB 4: 10M 체크
+      ══════════════════════════════════ */}
+      {activeTab === "10m-check" && (() => {
+        const connected = TEN_M_DOMAINS.filter(d=>d.status==="connected").length;
+        const partial   = TEN_M_DOMAINS.filter(d=>d.status==="partial").length;
+        const missing   = TEN_M_DOMAINS.filter(d=>d.status==="missing").length;
+        const avgReady  = Math.round(TEN_M_DOMAINS.reduce((a,d)=>a+d.readiness,0)/TEN_M_DOMAINS.length);
+        const sel = TEN_M_DOMAINS.find(d=>d.key===checkSelected) ?? TEN_M_DOMAINS[0];
+        const statusIcon = (s: DomainStatus) =>
+          s==="connected"?"✓":s==="partial"?"◑":"✗";
+        const statusBg = (s: DomainStatus) =>
+          s==="connected"?"bg-emerald-100 text-emerald-700 border-emerald-200":
+          s==="partial"  ?"bg-amber-100 text-amber-700 border-amber-200":
+                          "bg-rose-100 text-rose-700 border-rose-200";
+        const statusLabel = (s: DomainStatus) =>
+          s==="connected"?"적재 완료":s==="partial"?"부분 적재":"미적재";
+
+        return (
+          <div className="space-y-5">
+            {/* 요약 KPI */}
+            <div className="grid grid-cols-4 gap-3">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                <div className="text-xs text-emerald-600 font-medium mb-1">적재 완료 도메인</div>
+                <div className="text-2xl font-bold text-emerald-700">{connected}<span className="text-sm font-normal text-emerald-500 ml-1">/ 10</span></div>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <div className="text-xs text-amber-600 font-medium mb-1">부분 적재</div>
+                <div className="text-2xl font-bold text-amber-700">{partial}<span className="text-sm font-normal text-amber-500 ml-1">/ 10</span></div>
+              </div>
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-4">
+                <div className="text-xs text-rose-600 font-medium mb-1">미적재</div>
+                <div className="text-2xl font-bold text-rose-700">{missing}<span className="text-sm font-normal text-rose-500 ml-1">/ 10</span></div>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <div className="text-xs text-blue-600 font-medium mb-1">평균 AI 준비도</div>
+                <div className="text-2xl font-bold text-blue-700">{avgReady}<span className="text-sm font-normal text-blue-500 ml-1">점</span></div>
+              </div>
+            </div>
+
+            {/* 10M 도메인 그리드 + 상세 */}
+            <div className="grid grid-cols-5 gap-5">
+              {/* 왼쪽: 도메인 목록 */}
+              <div className="col-span-2 space-y-2">
+                <div className="text-xs font-bold text-slate-500 px-1 mb-2">기존 6M (Core)</div>
+                {TEN_M_DOMAINS.filter(d=>d.group==="core").map(d=>(
+                  <button key={d.key} onClick={()=>setCheckSelected(d.key)}
+                    className={`w-full text-left rounded-xl border p-3.5 transition-all ${checkSelected===d.key?"border-blue-400 bg-blue-50 shadow-sm":"border-slate-200 bg-white hover:border-slate-300"}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2.5 h-2.5 rounded-full ${d.color}`}/>
+                        <span className="font-bold text-slate-800 text-sm">{d.key}</span>
+                        <span className="text-xs text-slate-400">{d.kor}</span>
+                      </div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${statusBg(d.status)}`}>
+                        {statusIcon(d.status)} {statusLabel(d.status)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all" style={{width:`${d.readiness}%`,background:d.readiness>=80?"#10b981":d.readiness>=50?"#f59e0b":"#ef4444"}}/>
+                      </div>
+                      <span className="text-xs text-slate-500 shrink-0">준비도 {d.readiness}%</span>
+                    </div>
+                  </button>
+                ))}
+                <div className="text-xs font-bold text-slate-500 px-1 mt-4 mb-2">확장 4M (Extended)</div>
+                {TEN_M_DOMAINS.filter(d=>d.group==="extended").map(d=>(
+                  <button key={d.key} onClick={()=>setCheckSelected(d.key)}
+                    className={`w-full text-left rounded-xl border p-3.5 transition-all ${checkSelected===d.key?"border-blue-400 bg-blue-50 shadow-sm":"border-slate-200 bg-white hover:border-slate-300"}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2.5 h-2.5 rounded-full ${d.color}`}/>
+                        <span className="font-bold text-slate-800 text-sm">{d.key}</span>
+                        <span className="text-xs text-slate-400">{d.kor}</span>
+                      </div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${statusBg(d.status)}`}>
+                        {statusIcon(d.status)} {statusLabel(d.status)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all" style={{width:`${d.readiness}%`,background:d.readiness>=80?"#10b981":d.readiness>=50?"#f59e0b":"#ef4444"}}/>
+                      </div>
+                      <span className="text-xs text-slate-500 shrink-0">준비도 {d.readiness}%</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* 오른쪽: 선택 도메인 상세 */}
+              <div className="col-span-3 space-y-4">
+                {/* 도메인 헤더 */}
+                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl ${sel.color} flex items-center justify-center text-white font-bold text-sm`}>{sel.key[0]}</div>
+                      <div>
+                        <div className="font-bold text-slate-900">{sel.key} — {sel.kor}</div>
+                        <div className="text-xs text-slate-400 mt-0.5">{sel.source}</div>
+                      </div>
+                    </div>
+                    <span className={`text-xs px-2.5 py-1 rounded-full border font-semibold ${statusBg(sel.status)}`}>
+                      {statusIcon(sel.status)} {statusLabel(sel.status)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div className="bg-slate-50 rounded-lg p-3 text-center">
+                      <div className="text-xs text-slate-400">적재 레코드</div>
+                      <div className="font-bold text-slate-800 mt-0.5">{sel.records>0?sel.records.toLocaleString():"없음"}</div>
+                    </div>
+                    <div className="bg-slate-50 rounded-lg p-3 text-center">
+                      <div className="text-xs text-slate-400">AI 활용 준비도</div>
+                      <div className={`font-bold mt-0.5 ${sel.readiness>=80?"text-emerald-700":sel.readiness>=50?"text-amber-700":"text-rose-700"}`}>{sel.readiness}점</div>
+                    </div>
+                    <div className="bg-slate-50 rounded-lg p-3 text-center">
+                      <div className="text-xs text-slate-400">데이터 품질</div>
+                      <div className={`font-bold mt-0.5 ${sel.qualityScore>=80?"text-emerald-700":sel.qualityScore>=50?"text-amber-700":"text-rose-700"}`}>{sel.qualityScore>0?`${sel.qualityScore}점`:"측정 불가"}</div>
+                    </div>
+                  </div>
+                  {/* 준비도 게이지 */}
+                  <div>
+                    <div className="flex justify-between text-xs text-slate-500 mb-1">
+                      <span>AI 활용 준비도</span>
+                      <span className={sel.readiness>=80?"text-emerald-600":sel.readiness>=50?"text-amber-600":"text-rose-600"}>{sel.readiness}%</span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-700" style={{width:`${sel.readiness}%`,background:sel.readiness>=80?"#10b981":sel.readiness>=50?"#f59e0b":"#ef4444"}}/>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 체크리스트 */}
+                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                  <div className="text-sm font-semibold text-slate-700 mb-3">
+                    데이터 적재 체크리스트 ({sel.checks.filter(c=>c.ok).length}/{sel.checks.length} 통과)
+                  </div>
+                  <div className="space-y-2">
+                    {sel.checks.map((c,i)=>(
+                      <div key={i} className={`flex items-start gap-3 rounded-lg px-3 py-2.5 ${c.ok?"bg-emerald-50":"bg-slate-50"}`}>
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold ${c.ok?"bg-emerald-500 text-white":"bg-slate-200 text-slate-400"}`}>
+                          {c.ok?"✓":"✗"}
+                        </div>
+                        <div className="flex-1">
+                          <div className={`text-xs font-medium ${c.ok?"text-emerald-800":"text-slate-600"}`}>{c.label}</div>
+                          {c.note&&<div className="text-xs text-slate-400 mt-0.5">{c.note}</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 개선 필요 사항 + 다음 액션 */}
+                {sel.gaps.length>0&&(
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                    <div className="text-sm font-semibold text-slate-700 mb-3">개선 필요 사항</div>
+                    <div className="space-y-2">
+                      {sel.gaps.map((g,i)=>(
+                        <div key={i} className="flex items-start gap-2 bg-amber-50 rounded-lg px-3 py-2">
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5"/>
+                          <span className="text-xs text-amber-700">{g}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <a href={sel.actionHref} className="mt-3 flex items-center justify-between bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors">
+                      <span>{sel.nextAction}</span>
+                      <ChevronRight className="w-4 h-4"/>
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 하단: 전체 10M 레이더 요약 SVG */}
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+              <div className="text-sm font-semibold text-slate-700 mb-4">10M 도메인 AI 준비도 전체 현황</div>
+              <div className="flex gap-6 items-start">
+                {/* SVG 레이더 차트 */}
+                <svg width={220} height={220} viewBox="0 0 220 220" className="shrink-0">
+                  {(() => {
+                    const cx=110,cy=110,R=90;
+                    const N=TEN_M_DOMAINS.length;
+                    const angle=(i:number)=> (i/N)*2*Math.PI - Math.PI/2;
+                    const pt=(i:number,r:number)=>[cx+r*Math.cos(angle(i)),cy+r*Math.sin(angle(i))];
+                    const gridLevels=[0.25,0.5,0.75,1];
+                    return (
+                      <>
+                        {gridLevels.map(lvl=>(
+                          <polygon key={lvl}
+                            points={TEN_M_DOMAINS.map((_,i)=>pt(i,R*lvl).join(",")).join(" ")}
+                            fill="none" stroke="#e2e8f0" strokeWidth={0.8}/>
+                        ))}
+                        {TEN_M_DOMAINS.map((_,i)=>(
+                          <line key={i} x1={cx} y1={cy} x2={pt(i,R)[0]} y2={pt(i,R)[1]} stroke="#e2e8f0" strokeWidth={0.8}/>
+                        ))}
+                        <polygon
+                          points={TEN_M_DOMAINS.map((d,i)=>pt(i,R*(d.readiness/100)).join(",")).join(" ")}
+                          fill="#3b82f620" stroke="#3b82f6" strokeWidth={1.5}/>
+                        {TEN_M_DOMAINS.map((d,i)=>{
+                          const [x,y]=pt(i,R*(d.readiness/100));
+                          return <circle key={i} cx={x} cy={y} r={3} fill="#3b82f6"/>;
+                        })}
+                        {TEN_M_DOMAINS.map((d,i)=>{
+                          const [x,y]=pt(i,R+14);
+                          return <text key={i} x={x} y={y} textAnchor="middle" fontSize={9} fill="#64748b" fontWeight={600}>{d.key}</text>;
+                        })}
+                      </>
+                    );
+                  })()}
+                </svg>
+                {/* 범례 */}
+                <div className="flex-1 grid grid-cols-2 gap-2">
+                  {TEN_M_DOMAINS.map(d=>(
+                    <div key={d.key} className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${d.color} shrink-0`}/>
+                      <span className="text-xs font-medium text-slate-700 w-20 shrink-0">{d.key}</span>
+                      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{width:`${d.readiness}%`,background:d.readiness>=80?"#10b981":d.readiness>=50?"#f59e0b":"#ef4444"}}/>
+                      </div>
+                      <span className={`text-xs font-semibold w-8 text-right shrink-0 ${d.readiness>=80?"text-emerald-600":d.readiness>=50?"text-amber-600":"text-rose-600"}`}>{d.readiness}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ══════════════════════════════════
+          TAB 5: 연결 테이블 설계
       ══════════════════════════════════ */}
       {activeTab === "schema" && (
         <SchemaTab selected={schemaSource} onSelect={setSchemaSource} />
