@@ -1,7 +1,62 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Users, GitBranch, Network, Check, X, Clock, MessageSquare, Zap, ChevronRight } from "lucide-react";
+import { Users, GitBranch, Network, Check, X, Clock, MessageSquare, Zap, ChevronRight, HardHat, TrendingUp } from "lucide-react";
+
+// ── Man 도메인 — 작업자 숙련도 데이터 ──────────────────────────────
+const WORKERS = [
+  { id:"W001", name:"김철수", dept:"가공1라인", role:"CNC 작업자", level:"고급", score:88, tasks:42, errors:2, avgTime:18.4, cert:["CNC 2급","기계가공 기능사"] },
+  { id:"W002", name:"이영희", dept:"용접라인", role:"TIG 용접사", level:"중급", score:72, tasks:35, errors:5, avgTime:22.1, cert:["용접 기능사"] },
+  { id:"W003", name:"박민준", dept:"열처리동", role:"열처리 작업자", level:"고급", score:91, tasks:28, errors:1, avgTime:35.6, cert:["열처리 기능사","위험물 취급"] },
+  { id:"W004", name:"최수진", dept:"품질팀", role:"품질 검사원", level:"중급", score:79, tasks:156, errors:8, avgTime:6.2, cert:["품질경영 산업기사"] },
+  { id:"W005", name:"정대호", dept:"가공1라인", role:"프레스 작업자", level:"초급", score:54, tasks:18, errors:9, avgTime:28.3, cert:[] },
+];
+
+function ManDomainSection() {
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 bg-slate-50">
+        <HardHat className="w-4 h-4 text-blue-500"/>
+        <span className="text-xs font-bold text-slate-700">Man 도메인 — 작업자 숙련도 현황</span>
+      </div>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-100">
+            {["ID","이름","부서","숙련 등급","AI 점수","작업 건수","오류율","평균 작업시간","자격증"].map(h=>(
+              <th key={h} className="px-3 py-2.5 text-left text-[11px] text-slate-500 font-semibold">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-50">
+          {WORKERS.map(w=>(
+            <tr key={w.id} className="hover:bg-slate-50">
+              <td className="px-3 py-2.5 text-xs text-slate-400 font-mono">{w.id}</td>
+              <td className="px-3 py-2.5 font-medium text-slate-800">{w.name}</td>
+              <td className="px-3 py-2.5 text-xs text-slate-500">{w.dept}</td>
+              <td className="px-3 py-2.5">
+                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${w.level==="고급"?"bg-emerald-100 text-emerald-700":w.level==="중급"?"bg-blue-100 text-blue-700":"bg-amber-100 text-amber-700"}`}>{w.level}</span>
+              </td>
+              <td className="px-3 py-2.5">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-14 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{width:`${w.score}%`,background:w.score>=80?"#10b981":w.score>=65?"#3b82f6":"#f59e0b"}}/>
+                  </div>
+                  <span className="text-xs font-semibold" style={{color:w.score>=80?"#059669":w.score>=65?"#2563eb":"#d97706"}}>{w.score}</span>
+                </div>
+              </td>
+              <td className="px-3 py-2.5 text-xs text-slate-700">{w.tasks}건</td>
+              <td className="px-3 py-2.5 text-xs">
+                <span className={w.errors/w.tasks>0.1?"text-rose-600 font-semibold":"text-slate-600"}>{((w.errors/w.tasks)*100).toFixed(1)}%</span>
+              </td>
+              <td className="px-3 py-2.5 text-xs text-slate-600">{w.avgTime}분</td>
+              <td className="px-3 py-2.5 text-xs text-slate-500">{w.cert.length>0?w.cert.join(", "):"—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 type ReviewType = "entity"|"mapping"|"ontology";
 type ReviewStatus = "pending"|"approved"|"rejected"|"deferred";
@@ -454,6 +509,8 @@ export default function HumanReview() {
           <ReviewPanel item={selItem} onClose={()=>setSelected(null)} onDecide={decide}/>
         </>
       )}
+
+      <ManDomainSection/>
     </div>
   );
 }

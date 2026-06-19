@@ -5,8 +5,95 @@ import {
   Activity, Wifi, WifiOff, AlertTriangle, CheckCircle2, RefreshCw,
   ChevronDown, ChevronRight, Cpu, Zap, Thermometer, Gauge, Eye,
   Radio, BarChart2, Clock, Server, GitBranch, Bell, Wrench,
-  TrendingUp, TrendingDown, Minus,
+  TrendingUp, TrendingDown, Minus, Wind as WindIcon, Droplets,
 } from "lucide-react";
+
+// ── Environment 도메인 — 온습도·작업환경 ─────────────────────────────
+interface EnvZone {
+  id: string; name: string; area: string;
+  temp: number; humidity: number; co2: number; dust: number;
+  tempTarget: [number, number]; humTarget: [number, number];
+  status: "ok" | "warn" | "alert";
+}
+
+const INIT_ENV_ZONES: EnvZone[] = [
+  { id:"Z1", name:"가공1라인", area:"1동", temp:22.4, humidity:48, co2:820, dust:35, tempTarget:[20,26], humTarget:[40,60], status:"ok" },
+  { id:"Z2", name:"용접라인", area:"1동", temp:28.9, humidity:62, co2:1240, dust:88, tempTarget:[18,28], humTarget:[30,65], status:"warn" },
+  { id:"Z3", name:"열처리동", area:"2동", temp:34.2, humidity:31, co2:980, dust:52, tempTarget:[20,35], humTarget:[30,70], status:"warn" },
+  { id:"Z4", name:"조립라인", area:"2동", temp:23.1, humidity:52, co2:710, dust:28, tempTarget:[20,26], humTarget:[40,60], status:"ok" },
+  { id:"Z5", name:"도금라인", area:"3동", temp:26.8, humidity:74, co2:1580, dust:41, tempTarget:[20,30], humTarget:[40,70], status:"alert" },
+  { id:"Z6", name:"창고", area:"3동", temp:19.2, humidity:55, co2:620, dust:18, tempTarget:[15,25], humTarget:[40,65], status:"ok" },
+];
+
+function EnvironmentSection() {
+  const [zones, setZones] = useState<EnvZone[]>(INIT_ENV_ZONES);
+
+  useEffect(()=>{
+    const id = setInterval(()=>{
+      setZones(prev=>prev.map(z=>({
+        ...z,
+        temp: +(z.temp+(Math.random()-.48)*.3).toFixed(1),
+        humidity: Math.round(Math.max(20,Math.min(95,z.humidity+(Math.random()-.5)*2))),
+        co2: Math.round(Math.max(400,z.co2+(Math.random()-.5)*40)),
+      })));
+    },1200);
+    return ()=>clearInterval(id);
+  },[]);
+
+  const statusColor = { ok:"bg-emerald-100 text-emerald-700", warn:"bg-amber-100 text-amber-700", alert:"bg-rose-100 text-rose-700" };
+  const statusLabel = { ok:"정상", warn:"주의", alert:"경보" };
+
+  return (
+    <div className="mt-6 bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 bg-slate-50">
+        <WindIcon className="w-4 h-4 text-teal-500"/>
+        <span className="text-xs font-bold text-slate-700">Environment 도메인 — 구역별 온·습도·공기질</span>
+        <span className="ml-auto text-[10px] text-teal-600 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-full">실시간</span>
+      </div>
+      <div className="grid grid-cols-3 gap-0 divide-x divide-y divide-slate-100">
+        {zones.map(z=>{
+          const tempOk = z.temp>=z.tempTarget[0] && z.temp<=z.tempTarget[1];
+          const humOk  = z.humidity>=z.humTarget[0] && z.humidity<=z.humTarget[1];
+          return (
+            <div key={z.id} className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <div className="text-sm font-semibold text-slate-800">{z.name}</div>
+                  <div className="text-xs text-slate-400">{z.area}</div>
+                </div>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${statusColor[z.status]}`}>{statusLabel[z.status]}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className={`rounded-lg p-2 ${tempOk?"bg-slate-50":"bg-rose-50"}`}>
+                  <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-0.5">
+                    <Thermometer className="w-3 h-3"/>온도
+                  </div>
+                  <div className={`text-base font-bold ${tempOk?"text-slate-800":"text-rose-600"}`}>{z.temp}°C</div>
+                  <div className="text-[10px] text-slate-400">목표 {z.tempTarget[0]}~{z.tempTarget[1]}°C</div>
+                </div>
+                <div className={`rounded-lg p-2 ${humOk?"bg-slate-50":"bg-amber-50"}`}>
+                  <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-0.5">
+                    <Droplets className="w-3 h-3"/>습도
+                  </div>
+                  <div className={`text-base font-bold ${humOk?"text-slate-800":"text-amber-600"}`}>{z.humidity}%</div>
+                  <div className="text-[10px] text-slate-400">목표 {z.humTarget[0]}~{z.humTarget[1]}%</div>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-2">
+                  <div className="text-[10px] text-slate-400 mb-0.5">CO₂ (ppm)</div>
+                  <div className={`text-sm font-bold ${z.co2>1200?"text-rose-600":z.co2>1000?"text-amber-600":"text-slate-700"}`}>{z.co2}</div>
+                </div>
+                <div className="bg-slate-50 rounded-lg p-2">
+                  <div className="text-[10px] text-slate-400 mb-0.5">미세먼지 (μg/m³)</div>
+                  <div className={`text-sm font-bold ${z.dust>75?"text-rose-600":z.dust>50?"text-amber-600":"text-slate-700"}`}>{z.dust}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 type ProtocolId = "opcua" | "modbus" | "s7" | "eip" | "mc" | "fins" | "ads";
 type ConnStatus  = "online" | "error" | "offline" | "polling";
@@ -809,6 +896,8 @@ export default function SensorGateway() {
           )}
         </div>
       </div>
+
+      <EnvironmentSection/>
     </div>
   );
 }
