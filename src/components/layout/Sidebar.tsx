@@ -9,7 +9,7 @@ import {
   CheckCircle, Building2, Map, FileSearch, ClipboardCheck, Sparkles,
   Factory, Play, Bot, FileBarChart2, MessageSquareText, Plug, Mail,
   Newspaper, CalendarClock, RadioTower, Cpu, Network as NetworkIcon,
-  GitMerge, ShieldCheck, Upload, ChevronDown, Zap, Globe, Wrench, SearchCode,
+  GitMerge, ShieldCheck, Upload, ChevronDown, Zap, Globe, Wrench, SearchCode, BookOpen,
 } from "lucide-react";
 
 type NavItem = { href: string; icon: React.ElementType; label: string; sub: string };
@@ -55,6 +55,7 @@ const OPS: NavItem[] = [
   { href: "/onboarding-report", icon: FileBarChart2,   label: "Onboarding Report",sub: "AI-Readiness 리포트" },
   { href: "/governance",        icon: ShieldCheck,     label: "Governance",       sub: "오너십·SLA·컴플라이언스" },
   { href: "/roadmap",           icon: Map,             label: "Roadmap",          sub: "개발 현황 · 내부용" },
+  { href: "/guide",             icon: BookOpen,        label: "운영 가이드",       sub: "시나리오 × 메뉴 매핑" },
 ];
 
 const SECTIONS = [
