@@ -371,6 +371,12 @@ const SOURCES: Source[] = [
   { id:10, name:"Odoo ERP (D업체)",       type:"API",         dept:"경영지원팀", cycle:"30분",   security:"기밀", status:"connected", lastSync:"28분 전",  rows:"78,331",     files:null,    qualityScore:89, totalRows:78331,    host:"odoo-d.example.com",   port:8069, dbName:null,           schema:mkSchema(["sale_order","purchase_order","stock_move","mrp_production"]),issues:[{field:"stock_move.origin",issue:"공백값 88건",severity:"low"}],                                                                                history:mkHistory(true),  errorMsg:null, vendor:"D업체", system:"ERP" },
   { id:11, name:"Google Sheets (D업체)", type:"Google Drive",dept:"품질팀",     cycle:"수시",   security:"내부", status:"pending",   lastSync:"권한 필요", rows:null,         files:null,    qualityScore:0,  totalRows:0,        host:"sheets.googleapis.com",port:null, dbName:null,           schema:[],                                                                 issues:[],                                                                                                                                             history:mkHistory(false), errorMsg:null, vendor:"D업체", system:"QMS" },
   { id:12, name:"PDF 검사성적서 (D업체)", type:"파일서버",    dept:"품질팀",     cycle:"수시",   security:"내부", status:"connected", lastSync:"2일 전",    rows:null,         files:"521개", qualityScore:85, totalRows:94200,    host:"\\\\nas-d\\quality",   port:null, dbName:null,           schema:mkSchema(["INSP_REPORT","INSP_ITEM"]),                              issues:[{field:"INSP_REPORT.std_ref",issue:"표준 번호 누락 45건",severity:"mid"}],                                                                    history:mkHistory(true),  errorMsg:null, vendor:"D업체", system:"QMS" },
+  /* ── E업체 YH ERP (10개 모듈 · 총 ~247 테이블) ── */
+  { id:13, name:"YH ERP 원가/자산 (E업체)",   type:"DB",       dept:"경영지원팀", cycle:"일 1회", security:"기밀", status:"connected", lastSync:"1시간 전",  rows:"178,430",    files:null,    qualityScore:88, totalRows:178430,   host:"yh-erp.internal",      port:1433, dbName:"YH_PROD",      schema:mkSchema(["COS100_YH","COS200_YH","COS300_YH","FAT100","FAT200","FAT210"]),     issues:[{field:"COS200_YH.itm_nm",issue:"null 비율 8%",severity:"low"},{field:"FAT100.mng_no",issue:"중복 관리번호 27건",severity:"mid"}],              history:mkHistory(true),  errorMsg:null, vendor:"E업체", system:"ERP" },
+  { id:14, name:"YH ERP 인사/급여 (E업체)",   type:"DB",       dept:"경영지원팀", cycle:"일 1회", security:"기밀", status:"connected", lastSync:"3시간 전",  rows:"48,221",     files:null,    qualityScore:92, totalRows:48221,    host:"yh-erp.internal",      port:1433, dbName:"YH_PROD",      schema:mkSchema(["PAY100","PAY200","PAY300","HRK100","HRK200","PAZ300"]),              issues:[{field:"PAY100.emp_no",issue:"퇴직자 데이터 미정리 142건",severity:"mid"}],                                                                    history:mkHistory(true),  errorMsg:null, vendor:"E업체", system:"ERP" },
+  { id:15, name:"YH QMM 품질관리 (E업체)",    type:"DB",       dept:"품질팀",     cycle:"실시간", security:"내부", status:"connected", lastSync:"4분 전",    rows:"92,817",     files:null,    qualityScore:94, totalRows:92817,    host:"yh-erp.internal",      port:1433, dbName:"YH_PROD",      schema:mkSchema(["QMM100","QMM200_YH","QMM600","QMM620","QMM640"]),                   issues:[{field:"QMM100.bad_cd",issue:"불량코드 미분류 89건",severity:"mid"},{field:"QMM620.grade",issue:"A/B/C/D 이외 값 11건",severity:"low"}],        history:mkHistory(true),  errorMsg:null, vendor:"E업체", system:"QMS" },
+  { id:16, name:"YH PPZ 생산관리 (E업체)",    type:"DB",       dept:"생산팀",     cycle:"10분",   security:"내부", status:"connected", lastSync:"8분 전",    rows:"1,284,502",  files:null,    qualityScore:86, totalRows:1284502,  host:"yh-erp.internal",      port:1433, dbName:"YH_PROD",      schema:mkSchema(["PPZ100","PPZ200","PPZ300","PPZ400","PPZ600","PPZ700"]),              issues:[{field:"PPZ700.std_uph",issue:"UPH 기준값 공란 256건",severity:"mid"},{field:"PPZ100.loc_cd",issue:"로케이션 코드 미매핑 43건",severity:"low"}], history:mkHistory(true),  errorMsg:null, vendor:"E업체", system:"MES" },
+  { id:17, name:"YH CAM/LEB 재고창고 (E업체)",type:"DB",       dept:"구매팀",     cycle:"30분",   security:"내부", status:"connected", lastSync:"22분 전",   rows:"584,390",    files:null,    qualityScore:83, totalRows:584390,   host:"yh-erp.internal",      port:1433, dbName:"YH_PROD",      schema:mkSchema(["CAM100_YH","CAM200_YH","CAM300_YH","LEB100","LEB900_YH","LEB910_YH"]),issues:[{field:"LEB100.out_qty",issue:"출고수량 음수 35건",severity:"high"},{field:"CAM200_YH.end_up",issue:"단가 0원 재고 112건",severity:"mid"}],   history:mkHistory(true),  errorMsg:null, vendor:"E업체", system:"ERP" },
 ];
 
 const EVENT_POOL = [
@@ -404,12 +410,14 @@ const vendorColor: Record<string, string> = {
   "B업체": "bg-violet-500",
   "C업체": "bg-emerald-500",
   "D업체": "bg-amber-500",
+  "E업체": "bg-rose-500",
 };
 const vendorBg: Record<string, string> = {
   "A업체": "bg-blue-50 border-blue-200",
   "B업체": "bg-violet-50 border-violet-200",
   "C업체": "bg-emerald-50 border-emerald-200",
   "D업체": "bg-amber-50 border-amber-200",
+  "E업체": "bg-rose-50 border-rose-200",
 };
 
 // ─── 서브 컴포넌트 ───────────────────────────────────────────────
