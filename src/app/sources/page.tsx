@@ -4,8 +4,356 @@ import { useState, useEffect, useRef } from "react";
 import {
   CheckCircle2, AlertCircle, Clock, Wifi, WifiOff, Plus, RefreshCw,
   X, Database, Activity, ChevronRight,
-  Shield, Table2, History, Filter,
+  Shield, Table2, History, Filter, Loader2,
 } from "lucide-react";
+
+// ─── 데이터 원천 추가 모달 ───────────────────────────────────────
+type AddStep = "type" | "conn" | "test" | "done";
+
+const SOURCE_TYPES = [
+  { id:"DB",       label:"데이터베이스",  sub:"Oracle · MySQL · PostgreSQL · MSSQL", icon:"🗄️" },
+  { id:"API",      label:"REST API",       sub:"OpenAPI · GraphQL · OData",           icon:"🔌" },
+  { id:"파일서버", label:"파일 서버",      sub:"SMB · NFS · Excel · CSV · PDF",       icon:"📁" },
+  { id:"Google Drive", label:"Google Drive", sub:"Google Sheets · Drive 파일",        icon:"📊" },
+  { id:"이메일",   label:"이메일 / 메시지", sub:"Gmail · Outlook · 카카오톡 · Slack", icon:"📧" },
+];
+
+const DB_DRIVERS = ["Oracle","MySQL","PostgreSQL","MSSQL","MariaDB","SQLite"];
+const CYCLES     = ["실시간","10분","30분","1시간","6시간","일 1회","주 1회","수시"];
+const DEPTS      = ["경영지원팀","생산팀","생산기술팀","품질팀","설비팀","영업팀","구매팀","IT팀"];
+const SECS       = ["기밀","내부","일반"];
+
+interface AddForm {
+  name: string; type: string; dept: string; cycle: string; security: string;
+  host: string; port: string; dbName: string; dbDriver: string;
+  user: string; password: string; notes: string;
+}
+
+const EMPTY_FORM: AddForm = {
+  name:"", type:"", dept:DEPTS[0], cycle:"실시간", security:"내부",
+  host:"", port:"", dbName:"", dbDriver:DB_DRIVERS[0],
+  user:"", password:"", notes:"",
+};
+
+function AddSourceModal({ onClose, onAdd }: {
+  onClose: () => void;
+  onAdd: (src: Source) => void;
+}) {
+  const [step, setStep]   = useState<AddStep>("type");
+  const [form, setForm]   = useState<AddForm>(EMPTY_FORM);
+  const [testing, setTesting]   = useState(false);
+  const [testResult, setTestResult] = useState<"ok"|"fail"|null>(null);
+
+  const set = (k: keyof AddForm, v: string) => setForm(f=>({...f,[k]:v}));
+
+  const runTest = () => {
+    setTesting(true); setTestResult(null);
+    setTimeout(()=>{ setTesting(false); setTestResult("ok"); }, 1800);
+  };
+
+  const finish = () => {
+    const now = new Date().toLocaleTimeString("ko-KR",{hour12:false});
+    const newSrc: Source = {
+      id: Date.now(),
+      name: form.name || `${form.type} 신규 원천`,
+      type: form.type,
+      dept: form.dept,
+      cycle: form.cycle,
+      security: form.security,
+      status: testResult==="ok" ? "connected" : "pending",
+      lastSync: testResult==="ok" ? "방금 전" : "설정 필요",
+      rows: null, files: null,
+      qualityScore: testResult==="ok" ? 85 : 0,
+      totalRows: 0,
+      host: form.host || "-",
+      port: form.port ? parseInt(form.port) : null,
+      dbName: form.dbName || null,
+      schema: [],
+      issues: [],
+      history: mkHistory(testResult==="ok"),
+      errorMsg: null,
+    };
+    onAdd(newSrc);
+    onClose();
+  };
+
+  const connValid = form.host.trim() !== "" || form.type === "이메일";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[90vh]">
+        {/* 헤더 */}
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">데이터 원천 추가</h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {step==="type"?"원천 유형 선택":step==="conn"?"연결 정보 입력":step==="test"?"연결 테스트":"등록 완료"}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><X className="w-4 h-4"/></button>
+        </div>
+
+        {/* 스텝 인디케이터 */}
+        <div className="px-6 py-3 border-b border-slate-100 flex items-center gap-2 shrink-0">
+          {(["type","conn","test","done"] as AddStep[]).map((s,i)=>{
+            const idx=["type","conn","test","done"].indexOf(step);
+            const si=i;
+            const done=si<idx; const active=si===idx;
+            return (
+              <div key={s} className="flex items-center gap-2">
+                {i>0&&<div className={"h-px w-8 "+(done||active?"bg-blue-400":"bg-slate-200")}/>}
+                <div className={"w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold "+(done?"bg-blue-600 text-white":active?"bg-blue-600 text-white":"bg-slate-100 text-slate-400")}>
+                  {done?"✓":i+1}
+                </div>
+                <span className={"text-xs "+(active?"text-blue-700 font-semibold":"text-slate-400")}>
+                  {s==="type"?"유형":s==="conn"?"연결정보":s==="test"?"테스트":"완료"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 콘텐츠 */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {/* STEP 1: 유형 선택 */}
+          {step==="type"&&(
+            <div className="space-y-2">
+              <p className="text-xs text-slate-500 mb-4">연결할 데이터 원천 유형을 선택하세요.</p>
+              {SOURCE_TYPES.map(t=>(
+                <button key={t.id} onClick={()=>{ set("type",t.id); setStep("conn"); }}
+                  className={"w-full flex items-center gap-4 p-4 rounded-xl border text-left transition-all hover:shadow-sm "+(form.type===t.id?"border-blue-400 bg-blue-50":"border-slate-200 hover:border-slate-300")}>
+                  <span className="text-2xl">{t.icon}</span>
+                  <div>
+                    <div className="text-sm font-semibold text-slate-800">{t.label}</div>
+                    <div className="text-xs text-slate-400 mt-0.5">{t.sub}</div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-300 ml-auto"/>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* STEP 2: 연결 정보 */}
+          {step==="conn"&&(
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1.5">원천 이름 <span className="text-rose-500">*</span></label>
+                <input value={form.name} onChange={e=>set("name",e.target.value)}
+                  placeholder={`예: 더존 ERP (A업체)`}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"/>
+              </div>
+
+              {form.type==="DB"&&(
+                <>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1.5">DB 드라이버</label>
+                    <select value={form.dbDriver} onChange={e=>set("dbDriver",e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 bg-white">
+                      {DB_DRIVERS.map(d=><option key={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="col-span-2">
+                      <label className="text-xs font-semibold text-slate-600 block mb-1.5">호스트 <span className="text-rose-500">*</span></label>
+                      <input value={form.host} onChange={e=>set("host",e.target.value)}
+                        placeholder="erp.internal" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"/>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 block mb-1.5">포트</label>
+                      <input value={form.port} onChange={e=>set("port",e.target.value)}
+                        placeholder="1433" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"/>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1.5">데이터베이스명</label>
+                    <input value={form.dbName} onChange={e=>set("dbName",e.target.value)}
+                      placeholder="PROD_DB" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"/>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 block mb-1.5">사용자명</label>
+                      <input value={form.user} onChange={e=>set("user",e.target.value)}
+                        placeholder="db_user" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"/>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 block mb-1.5">비밀번호</label>
+                      <input type="password" value={form.password} onChange={e=>set("password",e.target.value)}
+                        placeholder="••••••••" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"/>
+                    </div>
+                  </div>
+                </>
+              )}
+              {form.type==="API"&&(
+                <>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1.5">API 엔드포인트 URL <span className="text-rose-500">*</span></label>
+                    <input value={form.host} onChange={e=>set("host",e.target.value)}
+                      placeholder="https://api.example.com/v1" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"/>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1.5">API Key / 토큰</label>
+                    <input type="password" value={form.password} onChange={e=>set("password",e.target.value)}
+                      placeholder="sk-••••••••" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"/>
+                  </div>
+                </>
+              )}
+              {(form.type==="파일서버"||form.type==="Google Drive")&&(
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1.5">경로 / URL <span className="text-rose-500">*</span></label>
+                  <input value={form.host} onChange={e=>set("host",e.target.value)}
+                    placeholder={form.type==="파일서버"?"\\\\nas\\share 또는 /mnt/nas":"https://drive.google.com/..."}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"/>
+                </div>
+              )}
+              {form.type==="이메일"&&(
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1.5">이메일 주소 / 채널 ID</label>
+                  <input value={form.host} onChange={e=>set("host",e.target.value)}
+                    placeholder="orders@company.com" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"/>
+                </div>
+              )}
+
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1.5">소유 부서</label>
+                  <select value={form.dept} onChange={e=>set("dept",e.target.value)}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 bg-white">
+                    {DEPTS.map(d=><option key={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1.5">갱신 주기</label>
+                  <select value={form.cycle} onChange={e=>set("cycle",e.target.value)}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 bg-white">
+                    {CYCLES.map(c=><option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1.5">보안 등급</label>
+                  <select value={form.security} onChange={e=>set("security",e.target.value)}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 bg-white">
+                    {SECS.map(s=><option key={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1.5">메모 (선택)</label>
+                <textarea value={form.notes} onChange={e=>set("notes",e.target.value)} rows={2}
+                  placeholder="특이사항, 담당자 연락처 등"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none"/>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: 연결 테스트 */}
+          {step==="test"&&(
+            <div className="space-y-4">
+              <div className="bg-slate-50 rounded-xl p-4 text-xs space-y-1.5">
+                <div className="font-semibold text-slate-700 mb-2">등록 정보 확인</div>
+                {[
+                  ["원천명", form.name||"(미입력)"],
+                  ["유형",   form.type],
+                  ["호스트", form.host||"-"],
+                  ["부서",   form.dept],
+                  ["주기",   form.cycle],
+                  ["보안",   form.security],
+                ].map(([k,v])=>(
+                  <div key={k} className="flex justify-between">
+                    <span className="text-slate-400">{k}</span>
+                    <span className="font-medium text-slate-700">{v}</span>
+                  </div>
+                ))}
+              </div>
+
+              {!testResult&&!testing&&(
+                <button onClick={runTest}
+                  className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors">
+                  연결 테스트 실행
+                </button>
+              )}
+              {testing&&(
+                <div className="flex items-center justify-center gap-3 py-6 text-blue-600">
+                  <Loader2 className="w-5 h-5 animate-spin"/>
+                  <span className="text-sm font-medium">연결 확인 중...</span>
+                </div>
+              )}
+              {testResult==="ok"&&(
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0"/>
+                  <div>
+                    <div className="text-sm font-semibold text-emerald-700">연결 성공</div>
+                    <div className="text-xs text-emerald-600 mt-0.5">응답 시간 182ms · 스키마 자동 탐지 완료</div>
+                  </div>
+                </div>
+              )}
+              {testResult==="fail"&&(
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-center gap-3">
+                  <AlertCircle className="w-5 h-5 text-rose-500 shrink-0"/>
+                  <div>
+                    <div className="text-sm font-semibold text-rose-700">연결 실패</div>
+                    <div className="text-xs text-rose-600 mt-0.5">호스트에 도달할 수 없습니다. 연결 정보를 확인하세요.</div>
+                  </div>
+                </div>
+              )}
+              {testResult&&(
+                <button onClick={()=>setStep("done")}
+                  className="w-full py-2.5 bg-slate-900 text-white rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors">
+                  {testResult==="ok"?"등록 완료하기":"테스트 건너뛰고 등록"}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* STEP 4: 완료 */}
+          {step==="done"&&(
+            <div className="flex flex-col items-center text-center py-6 space-y-4">
+              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500"/>
+              </div>
+              <div>
+                <div className="text-base font-bold text-slate-900">등록 완료!</div>
+                <div className="text-sm text-slate-500 mt-1">
+                  <span className="font-semibold text-slate-700">{form.name||form.type+" 원천"}</span>이 Source Registry에 추가되었습니다.
+                </div>
+              </div>
+              <div className="bg-slate-50 rounded-xl p-3 w-full text-xs space-y-1">
+                <div className="flex justify-between"><span className="text-slate-400">상태</span><span className={testResult==="ok"?"font-semibold text-emerald-600":"font-semibold text-amber-600"}>{testResult==="ok"?"연결됨":"설정 필요"}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">다음 단계</span><span className="text-slate-600">Schema Mapping 이동 권장</span></div>
+              </div>
+              <button onClick={finish}
+                className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors">
+                목록으로 돌아가기
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 하단 버튼 */}
+        {step!=="done"&&(
+          <div className="px-6 py-4 border-t border-slate-100 flex justify-between shrink-0">
+            <button onClick={()=>{
+              if(step==="type") onClose();
+              else if(step==="conn") setStep("type");
+              else if(step==="test") setStep("conn");
+            }} className="text-sm text-slate-500 hover:text-slate-700 transition-colors">
+              {step==="type"?"취소":"이전"}
+            </button>
+            {step==="conn"&&(
+              <button onClick={()=>setStep("test")} disabled={!form.type}
+                className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-40">
+                다음 — 연결 테스트
+              </button>
+            )}
+            {step==="test"&&!testResult&&(
+              <span className="text-xs text-slate-400 self-center">테스트 후 계속 진행 가능</span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 type SourceStatus = "connected" | "error" | "pending";
 
@@ -301,12 +649,18 @@ export default function SourceRegistry() {
   const [secFilter, setSecFilter] = useState<string>("all");
   const [selected, setSelected] = useState<Source | null>(null);
   const [liveEvents, setLiveEvents] = useState<SyncEvent[]>([]);
+  const [sources, setSources] = useState<Source[]>(SOURCES);
+  const [showAdd, setShowAdd] = useState(false);
   const tickRef = useRef(0);
+
+  const handleAdd = (src: Source) => {
+    setSources(prev => [src, ...prev]);
+  };
 
   useEffect(() => {
     const id = setInterval(() => {
       tickRef.current++;
-      const connSources = SOURCES.filter(s => s.status === "connected");
+      const connSources = sources.filter(s => s.status === "connected");
       if (connSources.length === 0) return;
       const src = connSources[Math.floor(Math.random() * connSources.length)];
       const pool = EVENT_POOL[Math.floor(Math.random() * EVENT_POOL.length)];
@@ -316,25 +670,25 @@ export default function SourceRegistry() {
       setLiveEvents(prev => [{ ...ev, ts }, ...prev].slice(0, 30));
     }, 1200);
     return () => clearInterval(id);
-  }, []);
+  }, [sources]);
 
   const counts = {
-    all: SOURCES.length,
-    connected: SOURCES.filter(s => s.status === "connected").length,
-    error: SOURCES.filter(s => s.status === "error").length,
-    pending: SOURCES.filter(s => s.status === "pending").length,
+    all: sources.length,
+    connected: sources.filter(s => s.status === "connected").length,
+    error: sources.filter(s => s.status === "error").length,
+    pending: sources.filter(s => s.status === "pending").length,
   };
 
-  const totalRows = SOURCES.filter(s => s.totalRows > 0).reduce((a,s) => a + s.totalRows, 0);
-  const connSources = SOURCES.filter(s => s.status === "connected");
+  const totalRows = sources.filter(s => s.totalRows > 0).reduce((a,s) => a + s.totalRows, 0);
+  const connSources = sources.filter(s => s.status === "connected");
   const avgQuality = connSources.length > 0
     ? Math.round(connSources.reduce((a,s) => a + s.qualityScore, 0) / connSources.length)
     : 0;
 
-  const types = ["all", ...Array.from(new Set(SOURCES.map(s => s.type)))];
-  const secs = ["all", ...Array.from(new Set(SOURCES.map(s => s.security)))];
+  const types = ["all", ...Array.from(new Set(sources.map(s => s.type)))];
+  const secs = ["all", ...Array.from(new Set(sources.map(s => s.security)))];
 
-  const filtered = SOURCES.filter(s =>
+  const filtered = sources.filter(s =>
     (statusFilter === "all" || s.status === statusFilter) &&
     (typeFilter === "all" || s.type === typeFilter) &&
     (secFilter === "all" || s.security === secFilter)
@@ -347,7 +701,7 @@ export default function SourceRegistry() {
           <h1 className="text-2xl font-bold text-slate-900">Source Registry</h1>
           <p className="text-slate-500 mt-1 text-sm">데이터 원천 등록 및 연결 상태 관리</p>
         </div>
-        <button className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+        <button onClick={()=>setShowAdd(true)} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
           <Plus className="w-4 h-4"/>데이터 원천 추가
         </button>
       </div>
@@ -503,6 +857,13 @@ export default function SourceRegistry() {
             liveEvents={liveEvents.filter(e => e.msg.startsWith(selected.name.split(" ")[0]))}
           />
         </>
+      )}
+
+      {showAdd && (
+        <AddSourceModal
+          onClose={() => setShowAdd(false)}
+          onAdd={handleAdd}
+        />
       )}
     </div>
   );
