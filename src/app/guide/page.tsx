@@ -199,6 +199,20 @@ const MENU_DOCS: MenuDoc[] = [
     howto:["파일 드래그앤드롭 업로드","파싱 규칙 선택(OCR/테이블/자유텍스트)","추출 결과 미리보기 확인 후 적재"],
     output:"비정형 문서 → 정형 데이터 변환",
   },
+  {
+    href:"/api-connector", icon:Plug, label:"API Connector", sub:"외부 API 연동", color:"blue", section:"STEP 1",
+    who:"IT팀 · 데이터 담당자",
+    when:"외부 REST API·ERP OpenAPI 연동 시",
+    howto:["엔드포인트 URL·인증 방식(API Key/OAuth2/Bearer) 입력","요청 파라미터·응답 경로(JSONPath) 매핑","스케줄 설정(폴링 주기) 또는 웹훅 수신 URL 등록","테스트 호출 → 응답 데이터 미리보기 확인"],
+    output:"외부 API 응답 → 정형 데이터 스트림",
+  },
+  {
+    href:"/email-parser", icon:Mail, label:"Email Parser", sub:"이메일·메신저 파싱", color:"blue", section:"STEP 1",
+    who:"구매팀 · 영업팀",
+    when:"이메일·카카오톡 발주서를 시스템에 입력해야 할 때",
+    howto:["연결 계정 등록(Gmail OAuth / Outlook / 카카오 채널)","수신 필터 설정 — 발신자·제목 키워드 조건","파싱 템플릿 선택 (발주서·검사성적서·거래명세서)","파싱 결과 검토 후 ERP 소스로 연계"],
+    output:"비정형 메일 → 구조화 발주/문서 데이터",
+  },
   /* STEP 2 */
   {
     href:"/schema-mapping", icon:GitBranch, label:"Schema Mapping", sub:"컬럼 표준화", color:"violet", section:"STEP 2",
@@ -249,6 +263,20 @@ const MENU_DOCS: MenuDoc[] = [
     howto:["후보 중복 쌍 목록 확인 (유사도 점수)","동일 엔티티 확인 → 통합 또는 분리","통합 결과 Schema Mapping에 반영"],
     output:"표준화된 단일 엔티티 키 목록",
   },
+  {
+    href:"/data-cleaner", icon:Sparkles, label:"Data Cleaner", sub:"날짜·단위·중복 정제", color:"violet", section:"STEP 2",
+    who:"데이터 담당자",
+    when:"적재 후 품질 이슈(날짜 형식 혼재·단위 불일치·중복 행) 발견 시",
+    howto:["이슈 유형 선택 — 날짜/단위/중복/이상치/공백","대상 소스·컬럼 선택 후 정제 룰 미리보기","변환 전·후 샘플 비교 확인","적용 버튼 → 변환 결과를 ODS 레이어에 반영","이력 탭에서 적용된 정제 룰 관리"],
+    output:"정제 완료 데이터 + 룰 이력 로그",
+  },
+  {
+    href:"/auto-onboarding", icon:Cpu, label:"Auto Onboarding", sub:"AI 자율 파이프라인", color:"violet", section:"STEP 2",
+    who:"데이터 담당자 · IT팀",
+    when:"신규 소스 등록 후 반복 온보딩 자동화 원할 때",
+    howto:["소스 선택 후 AI 자동 분석 시작","AI가 스키마 매핑·정제룰·파이프라인을 자동 제안","제안 결과 검토 후 일괄 승인 또는 개별 수정","스케줄 등록 → 이후 자동 실행","Auto Onboarding 이력에서 AI 결정 근거 확인"],
+    output:"자동 생성된 파이프라인·매핑 초안",
+  },
   /* STEP 3 */
   {
     href:"/ax-chat", icon:MessageSquareText, label:"AX Chat", sub:"LLM 자연어 질의", color:"emerald", section:"STEP 3",
@@ -264,7 +292,28 @@ const MENU_DOCS: MenuDoc[] = [
     howto:["E2E 탭 → PLM·ERP·MES·QMS 4시스템 연계도 확인","Quality Escape 탭 → 불량 발생 경로 6단계 역추적","자연어 질의 탭 → 그래프 기반 답변"],
     output:"시스템 간 연계 분석 결과",
   },
+  {
+    href:"/graph", icon:Share2, label:"Graph Preview", sub:"지식 그래프 시각화", color:"emerald", section:"STEP 3",
+    who:"데이터 담당자 · IT팀",
+    when:"엔티티 관계 구조 파악 / 온톨로지 검증 시",
+    howto:["노드 유형(제품·거래처·설비·문서) 선택해 필터","노드 클릭 → 연결된 엔티티·관계 상세 확인","확대/축소·드래그로 서브그래프 탐색","관계 엣지 클릭 → 연결 근거 데이터 소스 확인"],
+    output:"엔티티 관계 맵 시각화",
+  },
+  {
+    href:"/agent-monitor", icon:Bot, label:"Agent Monitor", sub:"AI 결정 로그", color:"emerald", section:"STEP 3",
+    who:"IT팀 · 데이터 담당자",
+    when:"AI 답변 근거 확인 / 자동 처리 감사 시",
+    howto:["에이전트별 실행 이력 타임라인 확인","각 결정 클릭 → 입력 컨텍스트·추론 과정·신뢰도 상세","이상 판단 또는 오류 결정 → Human Review로 에스컬레이션","정기적으로 AI 결정 정확도 리뷰 후 룰 조정"],
+    output:"AI 결정 감사 로그 · 신뢰도 지표",
+  },
   /* 운영 */
+  {
+    href:"/", icon:LayoutDashboard, label:"대시보드", sub:"AX 전환 현황", color:"slate", section:"운영 관리",
+    who:"관리자 · 전 직원",
+    when:"매일 업무 시작 시 / 경영진 브리핑 전",
+    howto:["AI-Ready 전체 점수·소스별 연결 현황 한눈에 확인","알림 배지 클릭 → 에러 소스·품질 경고 즉시 이동","최근 적재 이벤트 피드로 변경사항 파악","KPI 카드에서 총 행수·매핑률·품질점수 추이 확인"],
+    output:"플랫폼 전체 현황 요약",
+  },
   {
     href:"/mes-viewer", icon:Factory, label:"MES Viewer", sub:"공정·설비 현황", color:"slate", section:"운영 관리",
     who:"생산팀 · 운영팀",
@@ -292,6 +341,55 @@ const MENU_DOCS: MenuDoc[] = [
     when:"경영 보고 / 소스 온보딩 완료 시",
     howto:["소스별 AI-Readiness 점수 확인","미완료 항목 로드맵 확인","PDF 보고서 내보내기"],
     output:"AI-Readiness 종합 점수 보고서",
+  },
+  {
+    href:"/aps-planner", icon:CalendarClock, label:"APS Planner", sub:"수급 계획·납기 관리", color:"slate", section:"운영 관리",
+    who:"생산팀 · 구매팀 · 운영팀",
+    when:"납기 위험 주문 발생 / 생산 계획 수립 / 원자재 수급 조정 시",
+    howto:["납기 위험 주문 목록 확인 — 긴급도 순 정렬","생산 자원(설비·인력·자재) 가용 현황 확인","드래그앤드롭으로 생산 순서 재배치","시뮬레이션 실행 → 납기 달성 가능 여부 예측","확정 후 MES에 작업지시 전달"],
+    output:"생산 계획·납기 시뮬레이션 결과",
+  },
+  {
+    href:"/eco-tracker", icon:SearchCode, label:"ECO Tracker", sub:"Quality Escape 추적", color:"slate", section:"운영 관리",
+    who:"품질팀 · 생산기술팀",
+    when:"불량 자재·설계 변경 영향 SN 추적 필요 시",
+    howto:["ECO 번호 또는 불량 자재 코드 입력","영향 SN 범위 자동 계산 — LOT 역추적 6단계","영향받은 완제품 출고 이력 및 고객사 확인","시정조치 등록 후 재검사 스케줄 연동","Governance에 보고서 자동 생성"],
+    output:"영향 SN 목록 · 추적 경로 보고서",
+  },
+  {
+    href:"/maintenance", icon:Wrench, label:"Maintenance", sub:"설비 보전·예지정비", color:"slate", section:"운영 관리",
+    who:"설비팀 · 생산팀",
+    when:"설비 이상 알림 수신 / 정기 보전 계획 수립 시",
+    howto:["설비별 이상 징후 AI 알림 확인 (진동·온도·전류)","예측 고장 시점 및 권고 정비 항목 검토","정비 작업지시 생성 → 담당자 배정","정비 이력 기록 후 KPI(MTBF·MTTR) 업데이트","스페어파츠 재고 연동 현황 확인"],
+    output:"정비 작업지시 · MTBF/MTTR KPI",
+  },
+  {
+    href:"/energy", icon:Zap, label:"Energy Monitor", sub:"전력·가스 소비 모니터링", color:"slate", section:"운영 관리",
+    who:"설비팀 · 생산팀 · 관리자",
+    when:"에너지 비용 이상 증가 / 환경 목표 관리 시",
+    howto:["공정별·설비별 전력 소비 실시간 확인","원단위(kWh/EA) 목표 대비 실적 비교","Peak 구간 알림 설정 및 절감 권고 확인","월별 에너지 비용·탄소 배출 트렌드 리포트","이상 소비 설비 클릭 → Maintenance 연동"],
+    output:"에너지 소비 리포트 · 절감 권고",
+  },
+  {
+    href:"/milieu", icon:Globe, label:"Milieu Monitor", sub:"외부환경·공급망 기후", color:"slate", section:"운영 관리",
+    who:"구매팀 · 운영팀",
+    when:"기상 이상·지정학적 리스크·물류 지연 징후 발생 시",
+    howto:["주요 협력사 위치 기준 기상·물류 리스크 인덱스 확인","리스크 레벨 HIGH 이벤트 클릭 → 영향 범위 분석","Supply Chain Twin 연동 → 재고·납기 영향 시뮬레이션","리스크 알림 구독 설정 (협력사·품목·지역 기준)"],
+    output:"외부환경 리스크 지수 · 공급망 영향 분석",
+  },
+  {
+    href:"/news-monitor", icon:Newspaper, label:"News Monitor", sub:"공급망 위험 탐지", color:"slate", section:"운영 관리",
+    who:"구매팀 · 운영팀",
+    when:"협력사·원자재 관련 위험 뉴스 모니터링 시",
+    howto:["관심 키워드(협력사명·원자재·지역) 등록","AI 요약 카드로 관련 뉴스 빠르게 파악","위험도 HIGH 뉴스 클릭 → 상세 기사 및 영향 분석","AX Chat에 '이 뉴스 우리 재고에 영향 있나?' 즉시 질의","알림 구독 설정 → 이메일·메신저 수신"],
+    output:"공급망 위험 뉴스 요약 · 영향 분석",
+  },
+  {
+    href:"/roadmap", icon:Map, label:"Roadmap", sub:"개발 현황 · 내부용", color:"slate", section:"운영 관리",
+    who:"IT팀 · 관리자",
+    when:"기능 개발 현황 확인 / 우선순위 논의 시",
+    howto:["완료·진행중·예정 기능 현황 확인","기능 요청 카드 등록 (담당팀·우선순위·일정)","마일스톤별 진행률 추적","릴리즈 노트 확인"],
+    output:"개발 로드맵 현황 보고",
   },
 ];
 
